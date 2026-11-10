@@ -166,7 +166,25 @@ def refresh(previous):
             context = deposit_context(cookies, token, dates, catalogue, [prior_day, last], points)
         except (OSError, ValueError, StopIteration) as error:
             print(f"::warning::Ek mevduat bilgisi alınamadı: {error}")
-    return {"depositContext": context, "latest": last, "publication": publications.get(week(last)), "checked": now,
+    splits = {column: dict(previous.get("depositHistory", {}).get(column, {})) for column in ("TP", "YP")}
+    split_ids = {DEPOSIT_ITEMS["demand"], DEPOSIT_ITEMS["term"]}
+    split_items = [item for item in next(items for key, _, items in catalogue if key == DEPOSIT_GROUP)
+                   if item[0] in split_ids and not item[2]]
+    if len(split_items) == 2:
+        split_windows = [window for window in windows if window in targets
+                         or any(day not in splits["TP"] or day not in splits["YP"] for day in window)]
+        split_tasks = [(DEPOSIT_GROUP, split_items, interval) for interval in [periods[-13:], *split_windows]]
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for _, interval, series, error in pool.map(fetch, split_tasks):
+                if error:
+                    print(f"::warning::Vadeli/vadesiz {interval[0]}–{interval[-1]}: {error}")
+                    continue
+                by_key = {item["key"]: dict(item["points"]) for item in series}
+                for column, observations in splits.items():
+                    demand, term = (by_key[f"{DEPOSIT_GROUP}:{DEPOSIT_ITEMS[kind]}:10001:TL:{column}"]
+                                    for kind in ("demand", "term"))
+                    observations.update({day: [demand.get(day), term.get(day)] for day in interval})
+    return {"depositContext": context, "depositHistory": splits, "latest": last, "publication": publications.get(week(last)), "checked": now,
             "attempted": now, "points": points, "periods": periods,
             "windows": windows_checked, "revisions": revisions,
             "verified": sorted(set(previous.get("verified", [])) | verified_now),
