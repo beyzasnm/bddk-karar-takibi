@@ -49,6 +49,7 @@ const { chromium } = require('playwright');
     assert.ok(previous);
     snapshot.points[snapshot.series[0].id][previous] = null;
     snapshot.error = 'Kontrollü kaynak bağlantısı hatası';
+    await page.goto('about:blank');
     await page.setContent(html.replace(/(<script type="application\/json" id="snapshot">).*?(<\/script>)/s,
       (_, start, end) => start + JSON.stringify(snapshot).replace(/</g, '\\u003c') + end));
     assert.match(await page.locator('#notice').textContent(), /Son doğrulanmış veri/);
