@@ -3,6 +3,8 @@ on:
   push:
     branches: [hazine-satis-bddk]
     paths: [verify_treasury_source.py, .github/workflows/treasury-source.yml]
+  pull_request:
+    paths: [verify_treasury_source.py, .github/workflows/treasury-source.yml]
   workflow_dispatch:
 permissions:
   contents: read
