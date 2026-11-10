@@ -1,0 +1,31 @@
+name: BDDK kaynak doğrulaması
+on:
+  push:
+    paths: ['.github/workflows/source-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Inspect public bulletin forms
+        run: |
+          python - <<'PY'
+          import re
+          from urllib.request import urlopen
+          from urllib.parse import urljoin
+          base="https://www.bddk.org.tr"
+          url=base+"/BultenHaftalik/tr/Gelismis"
+          page=urlopen(url,timeout=20).read().decode("utf-8-sig")
+          for line in page.splitlines():
+              if re.search(r'<form|<script.*src=|url\s*:|<input.*name=|<select.*name=|RaporGetir|ExcelGetir',line,re.I) and not re.search('checkbox',line):
+                  print(line.strip()[:450])
+          for name in re.findall(r'<script[^>]*src=["\']([^"\']+)',page,re.I):
+              if re.search(r'bulten|gelismis|custom|/home',name,re.I) and not re.search(r'jquery|bootstrap',name,re.I):
+                  js=urlopen(urljoin(url,name),timeout=12).read().decode("utf-8-sig")
+                  for line in js.splitlines():
+                      if re.search(r'url\s*:|Getir|form|xlsx',line,re.I):
+                          print("JS",line.strip()[:450])
+          PY
