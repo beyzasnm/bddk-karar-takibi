@@ -1,0 +1,50 @@
+name: BDDK Hazine Satış ekranı
+on:
+  pull_request:
+    paths: [build_treasury.py, treasury.html, test_treasury.cjs, .github/workflows/treasury.yml]
+  push:
+    branches: [main]
+    paths: [build_treasury.py, treasury.html, test_treasury.cjs, .github/workflows/treasury.yml]
+  schedule:
+    - cron: '37 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: treasury-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install beautifulsoup4==4.13.4 lxml==5.4.0
+      - run: python build_treasury.py
+      - name: Doğrulanmış ekranı sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: bddk-haftalik-gorunum
+          path: dist/treasury/index.html
+      - name: Arayüz kabul testi
+        if: github.event_name == 'pull_request'
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install chromium
+          node test_treasury.cjs
+      - name: Gözlem ve revizyon arşivini kaydet
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add archive/treasury.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Hazine Satış BDDK gözlemlerini ve revizyonlarını kaydet"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
