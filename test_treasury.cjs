@@ -48,6 +48,7 @@ const { chromium } = require('playwright');
     assert.match(await first.locator('.tip').textContent(), /milyon TL/);
     await slider.press('Escape');
     assert.equal(await page.locator('.tip:visible').count(), 0);
+    await page.locator('h1').click();
     await first.locator('svg').hover();
     assert.ok(await first.locator('.tip').isVisible());
     await page.locator('h1').hover();
