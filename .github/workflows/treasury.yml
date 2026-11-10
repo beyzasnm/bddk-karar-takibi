@@ -39,7 +39,9 @@ jobs:
           node test_treasury.cjs
           python - <<'PY'
           import json
-          from build_treasury import STATE, record_observation
+          from http.cookiejar import CookieJar
+          from urllib.request import HTTPCookieProcessor, build_opener
+          from build_treasury import STATE, record_observation, deposit_context, discover, request, SOURCE
           state = json.loads(STATE.read_text())
           key = next(iter(state['points']))
           day = state['latest']
@@ -51,6 +53,16 @@ jobs:
           record_observation(state['points'], revisions, key, day, value + 1, state['checked'])
           assert revisions == [dict(id=key, date=day, old=value, new=value + 1, detectedAt=state['checked'])]
           print('Gerçek BDDK gözlemiyle revizyon ve yinelenen kontrol doğrulandı.')
+          cookies = CookieJar()
+          client = build_opener(HTTPCookieProcessor(cookies))
+          dates, token, catalogue = discover(request(client, SOURCE))
+          year_end = ['2025-12-26', '2026-01-02']
+          result = deposit_context(cookies, token, dates, catalogue, year_end, state['points'])
+          for column in ('TP', 'YP'):
+              entry = result[column]
+              assert entry['dates'] == year_end
+              assert all(isinstance(value, float) for key in ('total', 'demand', 'term') for value in entry[key])
+              print(f'Yıl geçişi {column}: toplam {entry["total"]}, vadeli {entry["term"]}, vadesiz {entry["demand"]}')
           PY
       - name: Gözlem ve revizyon arşivini kaydet
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
