@@ -1,9 +1,9 @@
-name: BDDK kararlarını güncelle
+name: BDDK verilerini ve kararlarını güncelle
 
 on:
   push:
     branches: [main]
-    paths: ['sync.py', 'dashboard.html', '.github/workflows/bddk.yml']
+    paths: ['sync.py', 'weekly.py', 'dashboard.html', '.github/workflows/bddk.yml']
   workflow_dispatch:
   schedule:
     - cron: '17 * * * *'
@@ -29,6 +29,10 @@ jobs:
           python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import json
           data = json.load(open("site/decisions.json", encoding="utf-8"))
+          for series in data["weekly"]["series"]:
+              points = series["points"]
+              latest = points[-1] if points else None
+              print(f'- {series["label"]}: {series["status"].get("error") or latest} ({len(points)} gözlem)')
           for name, source in data["sources"].items():
               print(f'- {name}: {source["error"] or "başarılı"}')
           rows = data["decisions"]

@@ -8,6 +8,8 @@ import sqlite3
 from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 
+import weekly
+
 ROOT = Path(__file__).resolve().parent
 SOURCES = {
     "Resmî Gazete’de yayımlanan": "https://www.bddk.org.tr/Mevzuat/Liste/55",
@@ -135,7 +137,8 @@ def render(db):
                                  publication_date, pdf IS NOT NULL AS archived, pdf_error
                           FROM decision WHERE active=1
                           ORDER BY date DESC, CAST(number AS INTEGER) DESC""").fetchall()
-    payload = {"sources": statuses, "decisions": [dict(row) for row in rows]}
+    payload = {"weekly": weekly.export(db), "sources": statuses,
+               "decisions": [dict(row) for row in rows]}
     output = ROOT / "site"
     output.mkdir(exist_ok=True)
     data = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c")
@@ -163,7 +166,8 @@ def main():
             for old, new in [["Resm� Gazete'de yayimlanan","Resmî Gazete’de yayımlanan"],["Resm� Gazete'de yayimlanmayan","Resmî Gazete’de yayımlanmayan"]]:
                 db.execute("UPDATE source SET name=? WHERE name=?", (new, old))
                 db.execute("UPDATE decision SET source=? WHERE source=?", (new, old))
-        results = [scan(db, name, url) for name, url in SOURCES.items()]
+        weekly_ok = weekly.collect(db, now)
+        results = [weekly_ok, *(scan(db, name, url) for name, url in SOURCES.items())]
         download(db)
         render(db)
     status = ROOT / "site" / "source-error"
