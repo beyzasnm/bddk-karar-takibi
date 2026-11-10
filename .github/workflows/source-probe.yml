@@ -15,17 +15,16 @@ jobs:
           python - <<'PY'
           import re
           from urllib.request import urlopen
-          from urllib.parse import urljoin
-          base="https://www.bddk.org.tr"
-          url=base+"/BultenHaftalik/tr/Gelismis"
-          page=urlopen(url,timeout=20).read().decode("utf-8-sig")
+          url="https://www.bddk.org.tr/BultenHaftalik/tr/Gelismis"
+          page=urlopen(url,timeout=25).read().decode("utf-8-sig")
+          for name in ["baslangicTarih","bitisTarih","CokluPara"]:
+              m=re.search(r'<select[^>]*id="'+name+r'"[^>]*>(.*?)</select>',page,re.S|re.I)
+              rows=re.findall(r'<option[^>]*>.*?</option>',m[1],re.S|re.I) if m else []
+              print("OPTIONS",name,len(rows),[r.strip() for r in rows[:3]+rows[-3:]])
+          for name in ["gelismisRaporGetir","KalemSpan","TarafSpan"]:
+              i=page.find("$('#"+name+"').click")
+              print("JS",name,page[i:i+3900] if i>=0 else "")
           for line in page.splitlines():
-              if re.search(r'<form|<script.*src=|url\s*:|<input.*name=|<select.*name=|RaporGetir|ExcelGetir',line,re.I) and not re.search('checkbox',line):
-                  print(line.strip()[:450])
-          for name in re.findall(r'<script[^>]*src=["\']([^"\']+)',page,re.I):
-              if re.search(r'bulten|gelismis|custom|/home',name,re.I) and not re.search(r'jquery|bootstrap',name,re.I):
-                  js=urlopen(urljoin(url,name),timeout=12).read().decode("utf-8-sig")
-                  for line in js.splitlines():
-                      if re.search(r'url\s*:|Getir|form|xlsx',line,re.I):
-                          print("JS",line.strip()[:450])
+              if re.search(r'kalemSutunSec|KalemEkle|TarafEkle|1000[12]|onclick=.*[12]\.0\.1',line,re.I):
+                  print(line.strip()[:350])
           PY
