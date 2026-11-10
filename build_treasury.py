@@ -85,12 +85,26 @@ def refresh(previous):
     intervals = [periods[-13:], *targets]
     tasks = [(group, items, interval) for interval in intervals for group, items in selected.items()]
     revisions = list(previous.get("revisions", []))
+    failures = []
+    verified_now = set()
+    failed_windows = set()
     with ThreadPoolExecutor(max_workers=3) as pool:
         def fetch(task):
             group, items, interval = task
-            return interval, report(list(cookies), token, dates, group, items, interval, "TL")
+            try:
+                return interval, report(list(cookies), token, dates, group, items, interval, "TL"), None
+            except (OSError, ValueError) as error:
+                return interval, [], error
 
-        for interval, values in pool.map(fetch, tasks):
+        for interval, values, error in pool.map(fetch, tasks):
+            if error:
+                if interval == periods[-13:]:
+                    raise ValueError(f"Son 13 hafta alınamadı: {error}") from error
+                failures.append(f"{interval[0]}–{interval[-1]}")
+                failed_windows.add(interval[0])
+                print(f"::warning::{interval[0]}–{interval[-1]}: {error}")
+                continue
+            verified_now.update(interval)
             for item in values:
                 key = item["key"]
                 if key not in points:
@@ -106,12 +120,13 @@ def refresh(previous):
                     points[key][day] = new
     windows_checked = dict(checked)
     for interval in targets:
-        windows_checked[interval[0] + "/" + interval[-1]] = now
+        if interval[0] not in failed_windows:
+            windows_checked[interval[0] + "/" + interval[-1]] = now
     return {"latest": last, "publication": publications.get(week(last)), "checked": now,
             "attempted": now, "points": points, "periods": periods,
             "windows": windows_checked, "revisions": revisions,
-            "verified": sorted(set(previous.get("verified", [])) | {day for interval in intervals for day in interval}),
-            "error": None}
+            "verified": sorted(set(previous.get("verified", [])) | verified_now),
+            "historyWarning": ", ".join(sorted(set(failures))), "error": None}
 
 
 def render(state):
