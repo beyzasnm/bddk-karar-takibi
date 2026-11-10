@@ -53,6 +53,13 @@ def week(day):
     return (value + timedelta(days=4 - value.weekday())).isoformat()
 
 
+def record_observation(points, revisions, key, day, new, now):
+    observations = points[key]
+    if day in observations and observations[day] != new:
+        revisions.append({"id": key, "date": day, "old": observations[day], "new": new, "detectedAt": now})
+    observations[day] = new
+
+
 def refresh(previous):
     cookies = CookieJar()
     client = build_opener(HTTPCookieProcessor(cookies))
@@ -86,17 +93,17 @@ def refresh(previous):
     tasks = [(group, items, interval) for interval in intervals for group, items in selected.items()]
     revisions = list(previous.get("revisions", []))
     failures = []
-    verified_now = set()
+    verified_by_group = {group: set() for group in selected}
     failed_windows = set()
     with ThreadPoolExecutor(max_workers=3) as pool:
         def fetch(task):
             group, items, interval = task
             try:
-                return interval, report(list(cookies), token, dates, group, items, interval, "TL"), None
+                return group, interval, report(list(cookies), token, dates, group, items, interval, "TL"), None
             except (OSError, ValueError) as error:
-                return interval, [], error
+                return group, interval, [], error
 
-        for interval, values, error in pool.map(fetch, tasks):
+        for group, interval, values, error in pool.map(fetch, tasks):
             if error:
                 if interval == periods[-13:]:
                     raise ValueError(f"Son 13 hafta alınamadı: {error}") from error
@@ -104,24 +111,22 @@ def refresh(previous):
                 failed_windows.add(interval[0])
                 print(f"::warning::{interval[0]}–{interval[-1]}: {error}")
                 continue
-            verified_now.update(interval)
+            verified_by_group[group].update(interval)
             for item in values:
                 key = item["key"]
                 if key not in points:
                     continue
                 incoming = dict(item["points"])
                 for day in interval:
-                    old = points[key].get(day)
                     new = incoming.get(day)
                     if day == last and new is None:
                         raise ValueError(f"Son dönem için boş kalem: {item['name']} {item['currency']}")
-                    if day in previous.get("verified", []) and old != new:
-                        revisions.append({"id": key, "date": day, "old": old, "new": new, "detectedAt": now})
-                    points[key][day] = new
+                    record_observation(points, revisions, key, day, new, now)
     windows_checked = dict(checked)
     for interval in targets:
         if interval[0] not in failed_windows:
             windows_checked[interval[0] + "/" + interval[-1]] = now
+    verified_now = set.intersection(*verified_by_group.values())
     return {"latest": last, "publication": publications.get(week(last)), "checked": now,
             "attempted": now, "points": points, "periods": periods,
             "windows": windows_checked, "revisions": revisions,
