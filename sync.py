@@ -10,10 +10,10 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
 SOURCES = {
-    "Resm� Gazete'de yayimlanan": "https://www.bddk.org.tr/Mevzuat/Liste/55",
-    "Resm� Gazete'de yayimlanmayan": "https://www.bddk.org.tr/Mevzuat/Liste/56",
+    "Resmî Gazete’de yayımlanan": "https://www.bddk.org.tr/Mevzuat/Liste/55",
+    "Resmî Gazete’de yayımlanmayan": "https://www.bddk.org.tr/Mevzuat/Liste/56",
 }
-TITLE = re.compile(r"^\(\s*(\d{1,2}\.\d{1,2}\.\d{4})\s*[---]\s*(\d+)\s*\)\s*(.+)$")
+TITLE = re.compile(r"^\(\s*(\d{1,2}\.\d{1,2}\.\d{4})\s*[-–—]\s*(\d+)\s*\)\s*(.+)$")
 HOSTS = {"www.bddk.org.tr", "bddk.org.tr", "www.bddk.gov.tr", "bddk.gov.tr"}
 LIMIT = 20 * 1024 * 1024
 
@@ -29,14 +29,14 @@ def official(url):
 
 def fetch(url):
     if not official(url):
-        raise ValueError("Resm� BDDK adresi bekleniyordu")
+        raise ValueError("Resmî BDDK adresi bekleniyordu")
     request = Request(url, headers={"User-Agent": "BDDK-Karar-Takibi/1.0"})
     with urlopen(request, timeout=15) as response:
         if not official(response.url):
-            raise ValueError("Beklenmeyen y�nlendirme")
+            raise ValueError("Beklenmeyen yönlendirme")
         content = response.read(LIMIT + 1)
         if len(content) > LIMIT:
-            raise ValueError("Yanit boyut sinirini asti")
+            raise ValueError("Yanıt boyut sınırını aştı")
         return content, response.headers.get_content_charset() or "utf-8"
 
 
@@ -75,7 +75,7 @@ def decisions(page, base):
         date = dt.datetime.strptime(date, "%d.%m.%Y").date().isoformat()
         rows[number] = (number, date, title, url)
     if not rows:
-        raise ValueError("Sayfada karar bulunamadi")
+        raise ValueError("Sayfada karar bulunamadı")
     return sorted(rows.values(), key=lambda row: (row[1], int(row[0])), reverse=True)
 
 
@@ -119,7 +119,7 @@ def download(db):
         try:
             content, _ = fetch(row["url"])
             if not content.startswith(b"%PDF-"):
-                raise ValueError("Baglanti PDF d�nd�rmedi")
+                raise ValueError("Bağlantı PDF döndürmedi")
             error = None
         except (OSError, ValueError) as exc:
             content, error = None, str(exc)
@@ -159,6 +159,10 @@ def main():
                 PRIMARY KEY (source, number)
             );
         """)
+        with db:
+            for old, new in [["Resm� Gazete'de yayimlanan","Resmî Gazete’de yayımlanan"],["Resm� Gazete'de yayimlanmayan","Resmî Gazete’de yayımlanmayan"]]:
+                db.execute("UPDATE source SET name=? WHERE name=?", (new, old))
+                db.execute("UPDATE decision SET source=? WHERE source=?", (new, old))
         results = [scan(db, name, url) for name, url in SOURCES.items()]
         download(db)
         render(db)

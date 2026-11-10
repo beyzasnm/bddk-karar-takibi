@@ -1,4 +1,4 @@
-name: BDDK kararlarini g�ncelle
+name: BDDK kararlarını güncelle
 
 on:
   push:
@@ -24,13 +24,23 @@ jobs:
         with:
           python-version: '3.13'
       - run: python sync.py
-      - name: Arsivi kaydet
+      - name: Tarama özetini yaz
+        run: |
+          python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json
+          data = json.load(open("site/decisions.json", encoding="utf-8"))
+          for name, source in data["sources"].items():
+              print(f'- {name}: {source["error"] or "başarılı"}')
+          rows = data["decisions"]
+          print(f'- Karar: {len(rows)} | Arşivlenen PDF: {sum(row["archived"] for row in rows)}')
+          PY
+      - name: Arşivi kaydet
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add bddk.sqlite3
           if ! git diff --cached --quiet; then
-            git commit -m "BDDK arsivini g�ncelle"
+            git commit -m "BDDK arşivini güncelle"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
       - uses: actions/upload-artifact@v4
@@ -72,5 +82,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "::error::En az bir BDDK kaynagi okunamadi. Panelde son basarili kontrol ve hata g�steriliyor."
+          echo "::error::En az bir BDDK kaynağı okunamadı. Panelde son başarılı kontrol ve hata gösteriliyor."
           exit 1

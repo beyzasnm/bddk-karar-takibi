@@ -1,17 +1,17 @@
 # BDDK Karar Takibi
 
-GitHub Actions, iki resm� BDDK karar listesini her saat 17. dakikada kontrol eder. SQLite dosyasi karar kayitlarini ve indirilen PDF'leri saklar. Dashboard HTML dosyasi veriyi kendi i�inde tasir ve tarayicida tek basina a�ilir.
+GitHub Actions, iki resmî BDDK karar listesini her saat 17. dakikada kontrol eder. SQLite dosyası karar kayıtlarını ve indirilen PDF’leri saklar. Dashboard HTML dosyası veriyi kendi içinde taşır ve tarayıcıda tek başına açılır.
 
 ## GitHub kurulumu
 
-1. GitHub'da yeni bir depo olustur ve ZIP'in i�erigini depo k�k�ne y�kle. Dosyalarin arasinda .github/workflows/bddk.yml de yer almali. GitHub web aray�z� bu klas�r� atladiysa **Add file  Create new file** ile ayni yolu olusturup dosyanin i�erigini yapistir.
-2. **Actions  BDDK kararlarini g�ncelle  Run workflow** ile ilk taramayi baslat. Arsiv i�in depo ayarlari GitHub Actions'a varsayilan dala yazma izni vermeli.
-3. �alistirma sayfasindaki **bddk-dashboard** �iktisini indir ve **index.html** dosyasini a�. Kaynaklarin son basarili kontrol�n� ve PDF durumlarini incele. Ilk �alistirma basarisiz g�r�nse bile tarama hatasi durumunda bu �ikti tani i�in kullanilabilir.
+1. GitHub’da yeni bir depo oluştur ve ZIP’in içeriğini depo köküne yükle. Dosyaların arasında .github/workflows/bddk.yml de yer almalı. GitHub web arayüzü bu klasörü atladıysa **Add file → Create new file** ile aynı yolu oluşturup dosyanın içeriğini yapıştır.
+2. **Actions → BDDK kararlarını güncelle → Run workflow** ile ilk taramayı başlat. Arşiv için depo ayarları GitHub Actions’a varsayılan dala yazma izni vermeli.
+3. Çalıştırma sayfasındaki **bddk-dashboard** çıktısını indir ve **index.html** dosyasını aç. Kaynakların son başarılı kontrolünü ve PDF durumlarını incele. İlk çalıştırma başarısız görünse bile tarama hatası durumunda bu çıktı tanı için kullanılabilir.
 
-S�rekli a�ilabilen bir baglanti i�in deponun plani ve g�r�n�rl�g� GitHub Pages'i destekliyorsa **Settings  Pages  Source  GitHub Actions** se�. Ardindan **Settings  Secrets and variables  Actions  Variables** altinda ENABLE_PAGES degerini true yap ve g�revi tekrar �alistir. Pages g�r�n�rl�g�n� depo hesabinin planina g�re kontrol et. SQLite dosyasi Pages �iktisina dahil edilmez. Depo herkese a�iksa SQLite dosyasi ve arsivlenmis PDF'ler depo �zerinden g�r�lebilir.
+Sürekli açılabilen bir bağlantı için deponun planı ve görünürlüğü GitHub Pages’i destekliyorsa **Settings → Pages → Source → GitHub Actions** seç. Ardından **Settings → Secrets and variables → Actions → Variables** altında ENABLE_PAGES değerini true yap ve görevi tekrar çalıştır. Pages görünürlüğünü depo hesabının planına göre kontrol et. SQLite dosyası Pages çıktısına dahil edilmez. Depo herkese açıksa SQLite dosyası ve arşivlenmiş PDF’ler depo üzerinden görülebilir.
 
-## Takip kapsami
+## Takip kapsamı
 
-Ilk taramada kaynak basina en g�ncel 10 karar panele alinir. Daha eski kayitlarin numaralari baslangi� referansi olarak tutulur. Sonraki taramalarda listede ilk kez g�r�len kararlar eklenir. Ayni kaynakta ayni karar numarasi tekrar kayit olusturmaz. Basarisiz PDF indirmeleri sonraki �alistirmalarda tekrar denenir. PDF arsivi SQLite i�indedir ve panel resm� belgeye baglanti verir.
+İlk taramada kaynak başına en güncel 10 karar panele alınır. Daha eski kayıtların numaraları başlangıç referansı olarak tutulur. Sonraki taramalarda listede ilk kez görülen kararlar eklenir. Aynı kaynakta aynı karar numarası tekrar kayıt oluşturmaz. Başarısız PDF indirmeleri sonraki çalıştırmalarda tekrar denenir. PDF arşivi SQLite içindedir ve panel resmî belgeye bağlantı verir.
 
-BDDK listelerindeki tarih karar tarihidir. Ilk s�r�m ayri bir yayin tarihi kaynagindan dogrulama yapmadigi i�in bu s�tun bos kalir. Ilk g�r�lme ve son basarili kontrol saatleri Istanbul saatine �evrilir. GitHub zamanlayicisi gecikebilir.
+BDDK listelerindeki tarih karar tarihidir. İlk sürüm ayrı bir yayın tarihi kaynağından doğrulama yapmadığı için bu sütun boş kalır. İlk görülme ve son başarılı kontrol saatleri İstanbul saatine çevrilir. GitHub zamanlayıcısı gecikebilir.

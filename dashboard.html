@@ -21,19 +21,19 @@ th{font-size:13px;color:#b9c8d8} a{color:#92dbff} small{display:block;color:#b9c
 </style>
 </head>
 <body>
-<header><div class="tag">BANKACILIK D�ZENLEME VE DENETLEME KURUMU</div>
-<h1>Kurul kararlari</h1><p>Iki resm� BDDK listesinden saatlik takip</p></header>
+<header><div class="tag">BANKACILIK DÜZENLEME VE DENETLEME KURUMU</div>
+<h1>Kurul kararları</h1><p>İki resmî BDDK listesinden saatlik takip</p></header>
 <section id="sources" aria-label="Kaynak durumu"></section>
-<label>Kararlarda ara <input id="query" type="search" placeholder="Baslik veya karar numarasi"></label>
+<label>Kararlarda ara <input id="query" type="search" placeholder="Başlık veya karar numarası"></label>
 <p id="count" aria-live="polite"></p>
 <div class="scroll"><table>
-<thead><tr><th>Karar tarihi</th><th>Karar</th><th>Yayin tarihi</th><th>Ilk g�r�lme</th><th>Son kontrol</th><th>Belge</th></tr></thead>
+<thead><tr><th>Karar tarihi</th><th>Karar</th><th>Yayın tarihi</th><th>İlk görülme</th><th>Son kontrol</th><th>Belge</th></tr></thead>
 <tbody id="rows"></tbody></table></div>
 <script type="application/json" id="data">__DATA__</script>
 <script>
 const data = JSON.parse(document.querySelector('#data').textContent);
 const format = new Intl.DateTimeFormat('tr-TR', {dateStyle:'short',timeStyle:'short',timeZone:'Europe/Istanbul'});
-const time = value => value ? format.format(new Date(value)) : '-';
+const time = value => value ? format.format(new Date(value)) : '—';
 const element = (parent, tag, text) => {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
@@ -44,10 +44,10 @@ const sources = document.querySelector('#sources');
 for (const source of Object.values(data.sources)) {
   const card = element(sources, 'article');
   element(card, 'strong', source.name);
-  element(card, 'p', 'Son basarili kontrol � ' + time(source.success));
+  element(card, 'p', 'Son başarılı kontrol · ' + time(source.success));
   const overdue = !source.success || Date.now() - Date.parse(source.success) > 3 * 3600000;
   if (source.error || overdue) {
-    const warning = source.error ? 'Son tarama basarisiz � ' + time(source.attempt) : 'Kontrol gecikmis olabilir';
+    const warning = source.error ? 'Son tarama başarısız · ' + time(source.attempt) : 'Kontrol gecikmiş olabilir';
     element(card, 'p', warning).className = 'warn';
   }
 }
@@ -62,14 +62,14 @@ function render() {
   for (const row of matches) {
     const tr = element(rows, 'tr');
     element(tr, 'td', row.date.split('-').reverse().join('.'));
-    const title = element(tr, 'td', row.number + ' � ' + row.title);
+    const title = element(tr, 'td', row.number + ' · ' + row.title);
     element(title, 'small', row.source);
-    element(tr, 'td', row.publication_date || '-');
+    element(tr, 'td', row.publication_date || '—');
     element(tr, 'td', time(row.first_seen));
     element(tr, 'td', time(row.last_seen));
     const documentCell = element(tr, 'td');
     element(documentCell, 'a', 'BDDK belgesi').href = row.url;
-    element(documentCell, 'small', row.archived ? 'Arsivlendi' : row.pdf_error ? 'Indirme yeniden denenecek' : 'Indirme bekliyor');
+    element(documentCell, 'small', row.archived ? 'Arşivlendi' : row.pdf_error ? 'İndirme yeniden denenecek' : 'İndirme bekliyor');
   }
 }
 query.addEventListener('input', render);
