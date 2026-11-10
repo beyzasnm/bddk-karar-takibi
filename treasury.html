@@ -10,6 +10,7 @@
 
 /* Keep each table on its own row and give both currency charts equal room. */
 .groups{display:block}.groups>section+section{margin-top:22px}.groups h2{padding-bottom:7px;border-bottom:1px solid var(--line)}.card{padding:15px 17px}.card h3{font-size:16px}.value{font-size:clamp(19px,2vw,26px);white-space:normal}.value small{font-weight:500;white-space:nowrap}.metrics{margin:7px 0 10px}.metrics .weekly{font-size:15px}.metrics .four{margin-top:6px}.metrics time{font-size:12px;color:var(--muted)}.period{font-size:17px}.bar{justify-content:flex-end}.chart{position:relative}.chart svg{max-height:182px}.comparison .chart svg{max-height:250px}.chart .point-picker:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%)}.tip{position:absolute;right:6px;top:26px;z-index:1;max-width:calc(100% - 12px);min-height:0;background:white;border-color:#aaa2ac;pointer-events:none}.comparison .tip{max-width:min(92%,460px)}.comparison .trend-summary{margin:6px 0;font-size:13px}.dates label{display:inline-flex;gap:5px;align-items:center}.dates input{font:inherit;color:inherit;border:1px solid #aaa2ac;padding:5px}.dates{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.dates input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.bar{flex-wrap:wrap}.controls{align-items:center}.card .range-summary{display:block;line-height:1.4}
+.context-line{display:block;margin-top:5px;color:var(--muted);font-size:12px}.deposit-split dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:7px 0}.deposit-split dd{margin:0;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -65,6 +66,34 @@ function changeText(c, pct=false, detailed=false){
  if(c.missing)return date(c.missing)+' gözlemi eksik';
  if(c.break)return 'Kapsam geçişi';
  return signed(detailed?c.delta:c.delta/1000,detailed?precise:num)+(detailed?' milyon TL':' milyar TL')+' · '+direction(c.delta)+(pct&&c.pct!==null?' · '+percent(c.pct):'');
+}
+function weeklyRank(s,current){
+ if(current.pct==null || current.pct===0)return '52 hafta sıralaması · '+(current.pct===0?'Bu hafta yatay':'Haftalık fark hesaplanamadı');
+ const sample=[];
+ for(let i=0;i<52;i++){
+  const d=dates.get(shift(end,-7*i));
+  if(!d)continue;
+  const {pct}=weekly(s,d);
+  if(pct!=null)sample.push(pct);
+ }
+ const rank=1+sample.filter(p=>Math.sign(p)===Math.sign(current.pct) && Math.abs(p)>Math.abs(current.pct)).length;
+ const coverage=sample.length===52?'Son 52 haftada':'Son 52 hafta · '+sample.length+' geçerli değişim';
+ return coverage+' · '+rank+'. en büyük '+direction(current.pct);
+}
+function depositDetail(s,c){
+ if(s.table!=='Mevduat')return {reference:'',breakdown:''};
+ const extra=data.depositContext?.[s.column];
+ const comparable=extra?.dates?.[0]===c.from && extra?.dates?.[1]===c.to && !c.break;
+ const difference=pair=>comparable && pair?.every(v=>v!=null) ? pair[1]-pair[0] : null;
+ const total=difference(extra?.total), demand=difference(extra?.demand), term=difference(extra?.term);
+ const reference=total===null || extra.total[0]===0 ? 'Bu hafta veri alınamadı' : percent(100*total/extra.total[0]);
+ const movement=v=>signed(v/1000)+' milyar TL';
+ const breakdown=demand===null || term===null ? '<p>Bu hafta doğrulanmış kırılım yok.</p>' :
+   '<dl><dt>Vadeli</dt><dd>'+movement(term)+'</dd><dt>Vadesiz</dt><dd>'+movement(demand)+'</dd></dl>';
+ return {
+  reference:'<small class="context-line deposit-reference">Sektör toplam mevduatı · '+reference+'</small>',
+  breakdown:'<details class="deposit-split"><summary>Vadeli / vadesiz katkısı</summary><p>'+date(c.from)+' → '+date(c.to)+' · '+(s.column==='YP'?'YP, TL karşılığı':'TL')+'</p>'+breakdown+'<p>Kaynak: BDDK Ticari Kuruluşlar mevduatının vadeli ve vadesiz alt kalemleri.</p></details>'
+ };
 }
 let range='13';
 let custom=null;
@@ -175,14 +204,16 @@ for(const s of data.series){
  const card=document.createElement('article');
  card.className='card';
  const c=weekly(s,data.latest), four=change(s,monthAgo,data.latest);
+ const context=depositDetail(s,c);
  const earliest=Object.keys(data.points[s.id]).find(d=>value(s,d)!==null);
  const missing=data.periods.filter(d=>value(s,d)===null).length;
  card.innerHTML='<h3>'+esc(s.title)+(s.column==='YP'?' <small>· TL karşılığı</small>':'')+'</h3>'+
  '<p class="value">'+balance(value(s,previous))+' <span aria-label="değerinden">→</span> '+balance(value(s,data.latest))+' <small>milyar TL</small></p>'+
  '<div class="metrics"><div class="weekly">Haftalık <strong>'+esc(changeText(c,true))+'</strong></div><time datetime="'+c.from+'">'+date(c.from)+'</time> <small>→</small> <time datetime="'+c.to+'">'+date(c.to)+'</time>'+
+ '<small class="context-line weekly-rank">'+esc(weeklyRank(s,c))+'</small>'+context.reference+
  '<div class="four">Dört hafta · '+esc(changeText(four,true))+'</div><time datetime="'+four.from+'">'+date(four.from)+'</time> <small>→</small> <time datetime="'+four.to+'">'+date(four.to)+'</time></div>'+
  '<div class="chart"></div><details><summary>Kaynak ve kapsam</summary><p>'+esc(s.table)+' / '+esc(s.name)+' · '+esc(s.column)+' · Sektör · milyon TL</p><p>'+esc(s.reason)+'</p>'+
- '<p>İlk doğrulanmış gözlem '+date(earliest)+' · Eksik katalog gözlemi '+missing+'</p><a href="'+esc(s.source)+'" target="_blank" rel="noopener">Resmî BDDK tablosu</a></details>';
+ '<p>İlk doğrulanmış gözlem '+date(earliest)+' · Eksik katalog gözlemi '+missing+'</p><a href="'+esc(s.source)+'" target="_blank" rel="noopener">Resmî BDDK tablosu</a></details>'+context.breakdown;
  groups.get(s.table).append(card);
  graphs.set(card.querySelector('.chart'),s);
  for(const id of ['first','second'])el(id).add(new Option(s.title,s.id));
