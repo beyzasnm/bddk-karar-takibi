@@ -11,6 +11,19 @@
 /* Keep each table on its own row and give both currency charts equal room. */
 .groups{display:block}.groups>section+section{margin-top:22px}.groups h2{padding-bottom:7px;border-bottom:1px solid var(--line)}.card{padding:15px 17px}.card h3{font-size:16px}.value{font-size:clamp(19px,2vw,26px);white-space:normal}.value small{font-weight:500;white-space:nowrap}.metrics{margin:7px 0 10px}.metrics .weekly{font-size:15px}.metrics .four{margin-top:6px}.metrics time{font-size:12px;color:var(--muted)}.period{font-size:17px}.bar{justify-content:flex-end}.chart{position:relative}.chart svg{max-height:182px}.comparison .chart svg{max-height:250px}.chart .point-picker:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%)}.tip{position:absolute;right:6px;top:26px;z-index:1;max-width:calc(100% - 12px);min-height:0;background:white;border-color:#aaa2ac;pointer-events:none}.comparison .tip{max-width:min(92%,460px)}.comparison .trend-summary{margin:6px 0;font-size:13px}.dates label{display:inline-flex;gap:5px;align-items:center}.dates input{font:inherit;color:inherit;border:1px solid #aaa2ac;padding:5px}.dates{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.dates input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.bar{flex-wrap:wrap}.controls{align-items:center}.card .range-summary{display:block;line-height:1.4}
 .context-line{display:block;margin-top:5px;color:var(--muted);font-size:12px}.deposit-split dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:7px 0}.deposit-split dd{margin:0;font-variant-numeric:tabular-nums}
+
+/* Separate the two tables and keep the figures on white surfaces. */
+.groups>section{--section-bg:#f8f3f6;--section-rule:#e9dce5;background:var(--section-bg);border:1px solid var(--section-rule);padding:12px}
+.groups>section.deposit-group{--section-bg:#f3f5f7;--section-rule:#dfe5ea}
+.groups h2{border-bottom:0;padding:0 3px;margin-bottom:9px}.card{background:#fff}.value{margin:9px 0 11px!important}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 10px}
+.metric{min-width:0;padding:8px 10px;border:1px solid var(--line);background:#fff}
+.metric.weekly{background:var(--section-bg);border-color:var(--section-rule)}
+.metric.four{margin:0}.metric-label{display:block;font-size:12px;font-weight:600;color:var(--muted)}
+.metric-value{display:block;margin:3px 0;font-weight:650;font-variant-numeric:tabular-nums}
+.metric.four .metric-value{font-weight:500}.metric-dates{display:block}
+.deposit-reference{grid-column:1/-1;margin:0;padding:6px 9px;border-left:2px solid #b8c3ce;color:var(--muted)}
+@media(max-width:460px){.groups>section{padding:8px}.metrics{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -67,18 +80,10 @@ function changeText(c, pct=false, detailed=false){
  if(c.break)return 'Kapsam geçişi';
  return signed(detailed?c.delta:c.delta/1000,detailed?precise:num)+(detailed?' milyon TL':' milyar TL')+' · '+direction(c.delta)+(pct&&c.pct!==null?' · '+percent(c.pct):'');
 }
-function weeklyRank(s,current){
- if(current.pct==null || current.pct===0)return '52 hafta sıralaması · '+(current.pct===0?'Bu hafta yatay':'Haftalık fark hesaplanamadı');
- const sample=[];
- for(let i=0;i<52;i++){
-  const d=dates.get(shift(end,-7*i));
-  if(!d)continue;
-  const {pct}=weekly(s,d);
-  if(pct!=null)sample.push(pct);
- }
- const rank=1+sample.filter(p=>Math.sign(p)===Math.sign(current.pct) && Math.abs(p)>Math.abs(current.pct)).length;
- const coverage=sample.length===52?'Son 52 haftada':'Son 52 hafta · '+sample.length+' geçerli değişim';
- return coverage+' · '+rank+'. en büyük '+direction(current.pct);
+function metric(kind,label,change){
+ return '<div class="metric '+kind+'"><span class="metric-label">'+label+'</span>'+
+   '<span class="metric-value">'+esc(changeText(change,true))+'</span>'+
+   '<span class="metric-dates"><time datetime="'+change.from+'">'+date(change.from)+'</time> <small>→</small> <time datetime="'+change.to+'">'+date(change.to)+'</time></span></div>';
 }
 function depositDetail(s,c){
  if(s.table!=='Mevduat')return {reference:'',breakdown:''};
@@ -198,6 +203,7 @@ const groups=new Map();
 for(const s of data.series){
  if(!groups.has(s.table)){
   const group=document.createElement('section');
+  if(s.table==='Mevduat')group.classList.add('deposit-group');
   group.innerHTML='<h2>'+esc(s.table)+'</h2><div class="cards"></div>';
   el('groups').append(group);groups.set(s.table,group.lastElementChild);
  }
@@ -209,9 +215,7 @@ for(const s of data.series){
  const missing=data.periods.filter(d=>value(s,d)===null).length;
  card.innerHTML='<h3>'+esc(s.title)+(s.column==='YP'?' <small>· TL karşılığı</small>':'')+'</h3>'+
  '<p class="value">'+balance(value(s,previous))+' <span aria-label="değerinden">→</span> '+balance(value(s,data.latest))+' <small>milyar TL</small></p>'+
- '<div class="metrics"><div class="weekly">Haftalık <strong>'+esc(changeText(c,true))+'</strong></div><time datetime="'+c.from+'">'+date(c.from)+'</time> <small>→</small> <time datetime="'+c.to+'">'+date(c.to)+'</time>'+
- '<small class="context-line weekly-rank">'+esc(weeklyRank(s,c))+'</small>'+context.reference+
- '<div class="four">Dört hafta · '+esc(changeText(four,true))+'</div><time datetime="'+four.from+'">'+date(four.from)+'</time> <small>→</small> <time datetime="'+four.to+'">'+date(four.to)+'</time></div>'+
+ '<div class="metrics">'+metric('weekly','Haftalık değişim',c)+metric('four','Dört haftalık değişim',four)+context.reference+'</div>'+
  '<div class="chart"></div><details><summary>Kaynak ve kapsam</summary><p>'+esc(s.table)+' / '+esc(s.name)+' · '+esc(s.column)+' · Sektör · milyon TL</p><p>'+esc(s.reason)+'</p>'+
  '<p>İlk doğrulanmış gözlem '+date(earliest)+' · Eksik katalog gözlemi '+missing+'</p><a href="'+esc(s.source)+'" target="_blank" rel="noopener">Resmî BDDK tablosu</a></details>'+context.breakdown;
  groups.get(s.table).append(card);
