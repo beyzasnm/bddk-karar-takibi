@@ -102,7 +102,24 @@ const { chromium } = require('playwright');
     const difference = (points['2026-01-02'] - points['2025-12-26']) / 1000;
     const rounded = new Intl.NumberFormat('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1}).format(Math.abs(difference));
     assert.ok((await period.locator('.metric-value').textContent()).includes((difference >= 0 ? '+' : '−') + rounded + ' milyar TL'));
+    for (const [i,column] of ['TP','YP'].entries()) {
+      const start = snapshot.depositHistory[column]['2025-12-26'];
+      const end = snapshot.depositHistory[column]['2026-01-02'];
+      assert.ok(start.every(v => typeof v === 'number') && end.every(v => typeof v === 'number'));
+      const details = page.locator('.deposit-split').nth(i);
+      await details.locator('summary').click();
+      const split = details.locator('.period-deposit-split');
+      assert.match(await split.textContent(), /26 Ara 2025.*2 Oca 2026/);
+      for (const index of [0,1]) {
+        const movement = (end[index] - start[index]) / 1000;
+        const amount = new Intl.NumberFormat('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1}).format(Math.abs(movement));
+        assert.ok((await split.textContent()).includes((movement<0?'−':movement>0?'+':'') + amount + ' milyar TL'));
+      }
+      assert.equal(await details.locator('dd').count(), 2);
+      await details.locator('summary').click();
+    }
     await range.selectOption('all');
+    assert.match(await page.locator('.period-deposit-split').first().textContent(), /Kapsam geçişi/);
     assert.match(await period.locator('.metric-value').textContent(), /Kapsam geçişi/);
     assert.ok(await page.locator('#custom-dates').isHidden());
     await page.setViewportSize({ width: 390, height: 850 });
