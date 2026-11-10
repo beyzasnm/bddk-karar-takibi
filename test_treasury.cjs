@@ -35,6 +35,24 @@ const { chromium } = require('playwright');
     await page.getByRole('button', { name: 'Tüm geçmiş' }).click();
     assert.deepEqual(await values.allTextContents(), before);
     assert.deepEqual(await page.locator('.metrics').allTextContents(), cardsBefore);
+    assert.ok(snapshot.periods.includes('2025-12-26') && snapshot.periods.includes('2026-01-02'));
+    for (const series of snapshot.series) {
+      assert.equal(typeof snapshot.points[series.id]['2025-12-26'], 'number');
+      assert.equal(typeof snapshot.points[series.id]['2026-01-02'], 'number');
+    }
+    const html = fs.readFileSync(output, 'utf8');
+    const latest = new Date(snapshot.latest + 'T00:00:00Z');
+    const sinceFriday = (latest.getUTCDay() + 2) % 7;
+    latest.setUTCDate(latest.getUTCDate() - sinceFriday - 7);
+    const previousWeek = latest.toISOString().slice(0,10);
+    const previous = snapshot.periods.filter(d => d <= previousWeek && d > new Date(latest - 7 * 86400000).toISOString().slice(0,10)).at(-1);
+    assert.ok(previous);
+    snapshot.points[snapshot.series[0].id][previous] = null;
+    snapshot.error = 'Kontrollü kaynak bağlantısı hatası';
+    await page.setContent(html.replace(/(<script type="application\/json" id="snapshot">).*?(<\/script>)/s,
+      (_, start, end) => start + JSON.stringify(snapshot).replace(/</g, '\\u003c') + end));
+    assert.match(await page.locator('#notice').textContent(), /Son doğrulanmış veri/);
+    assert.match(await page.locator('.card .metrics').first().textContent(), /gözlemi eksik/);
     assert.deepEqual(errors, []);
     console.log('Dört kart, tarih aralıkları, klavye, bilgi kutusu ve endeks karşılaştırması doğrulandı.');
   } finally {
