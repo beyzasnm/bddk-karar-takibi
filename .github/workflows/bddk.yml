@@ -1,0 +1,76 @@
+name: BDDK kararlarini g�ncelle
+
+on:
+  push:
+    branches: [main]
+    paths: ['sync.py', 'dashboard.html', '.github/workflows/bddk.yml']
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+concurrency:
+  group: bddk-update
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python sync.py
+      - name: Arsivi kaydet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bddk.sqlite3
+          if ! git diff --cached --quiet; then
+            git commit -m "BDDK arsivini g�ncelle"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bddk-dashboard
+          path: |
+            site/index.html
+            site/decisions.json
+      - uses: actions/upload-pages-artifact@v3
+        if: vars.ENABLE_PAGES == 'true'
+        with:
+          path: site
+      - name: Kaynak durumunu kaydet
+        id: source
+        run: |
+          if test -f site/source-error; then
+            echo 'failed=true' >> "$GITHUB_OUTPUT"
+          fi
+    outputs:
+      source_failed: ${{ steps.source.outputs.failed }}
+
+  pages:
+    if: vars.ENABLE_PAGES == 'true'
+    needs: sync
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
+
+  source-status:
+    if: needs.sync.outputs.source_failed == 'true'
+    needs: sync
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::En az bir BDDK kaynagi okunamadi. Panelde son basarili kontrol ve hata g�steriliyor."
+          exit 1

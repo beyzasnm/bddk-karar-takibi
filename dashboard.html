@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BDDK Karar Takibi</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui;background:#10151c;color:#e9eef4}
+body{max-width:1120px;margin:48px auto;padding:0 22px}
+header{border-bottom:1px solid #394653;margin-bottom:22px}
+h1{margin:4px 0 12px;font-size:clamp(30px,6vw,54px)}
+p{color:#b9c8d8} .tag{color:#7fe0be;font-size:13px;letter-spacing:.16em}
+#sources{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:12px}
+article{background:#19232d;border:1px solid #394653;padding:15px;border-radius:8px}
+article p{margin:6px 0} .warn{color:#ffc180}
+label{display:block;margin:24px 0 12px}
+input{display:block;margin-top:7px;padding:10px;background:#19232d;color:inherit;border:1px solid #586879;border-radius:6px;width:min(94%,400px)}
+.scroll{overflow:auto} table{width:100%;border-collapse:collapse;text-align:left}
+td,th{padding:12px 10px;border-bottom:1px solid #394653;vertical-align:top}
+th{font-size:13px;color:#b9c8d8} a{color:#92dbff} small{display:block;color:#b9c8d8;margin-top:5px}
+</style>
+</head>
+<body>
+<header><div class="tag">BANKACILIK D�ZENLEME VE DENETLEME KURUMU</div>
+<h1>Kurul kararlari</h1><p>Iki resm� BDDK listesinden saatlik takip</p></header>
+<section id="sources" aria-label="Kaynak durumu"></section>
+<label>Kararlarda ara <input id="query" type="search" placeholder="Baslik veya karar numarasi"></label>
+<p id="count" aria-live="polite"></p>
+<div class="scroll"><table>
+<thead><tr><th>Karar tarihi</th><th>Karar</th><th>Yayin tarihi</th><th>Ilk g�r�lme</th><th>Son kontrol</th><th>Belge</th></tr></thead>
+<tbody id="rows"></tbody></table></div>
+<script type="application/json" id="data">__DATA__</script>
+<script>
+const data = JSON.parse(document.querySelector('#data').textContent);
+const format = new Intl.DateTimeFormat('tr-TR', {dateStyle:'short',timeStyle:'short',timeZone:'Europe/Istanbul'});
+const time = value => value ? format.format(new Date(value)) : '-';
+const element = (parent, tag, text) => {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  parent.append(node);
+  return node;
+};
+const sources = document.querySelector('#sources');
+for (const source of Object.values(data.sources)) {
+  const card = element(sources, 'article');
+  element(card, 'strong', source.name);
+  element(card, 'p', 'Son basarili kontrol � ' + time(source.success));
+  const overdue = !source.success || Date.now() - Date.parse(source.success) > 3 * 3600000;
+  if (source.error || overdue) {
+    const warning = source.error ? 'Son tarama basarisiz � ' + time(source.attempt) : 'Kontrol gecikmis olabilir';
+    element(card, 'p', warning).className = 'warn';
+  }
+}
+const query = document.querySelector('#query');
+const rows = document.querySelector('#rows');
+function render() {
+  rows.replaceChildren();
+  const needle = query.value.trim().toLocaleLowerCase('tr');
+  const matches = data.decisions.filter(row =>
+    (row.number + ' ' + row.title).toLocaleLowerCase('tr').includes(needle));
+  document.querySelector('#count').textContent = matches.length + ' karar';
+  for (const row of matches) {
+    const tr = element(rows, 'tr');
+    element(tr, 'td', row.date.split('-').reverse().join('.'));
+    const title = element(tr, 'td', row.number + ' � ' + row.title);
+    element(title, 'small', row.source);
+    element(tr, 'td', row.publication_date || '-');
+    element(tr, 'td', time(row.first_seen));
+    element(tr, 'td', time(row.last_seen));
+    const documentCell = element(tr, 'td');
+    element(documentCell, 'a', 'BDDK belgesi').href = row.url;
+    element(documentCell, 'small', row.archived ? 'Arsivlendi' : row.pdf_error ? 'Indirme yeniden denenecek' : 'Indirme bekliyor');
+  }
+}
+query.addEventListener('input', render);
+render();
+</script>
+</body>
+</html>
