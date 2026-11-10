@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.request import HTTPCookieProcessor, build_opener
 from zoneinfo import ZoneInfo
 import json
+from math import isclose
 import re
 
 from collect_weekly import SOURCE, discover, report, request, stamp
@@ -58,6 +59,36 @@ def record_observation(points, revisions, key, day, new, now):
     if day in observations and observations[day] != new:
         revisions.append({"id": key, "date": day, "old": observations[day], "new": new, "detectedAt": now})
     observations[day] = new
+
+
+DEPOSIT_GROUP = "292"
+COMMERCIAL_ITEM = "5734"
+DEPOSIT_ITEMS = {"total": "5730", "demand": "5735", "term": "5736"}
+
+
+def deposit_context(cookies, token, dates, catalogue, interval, points):
+    catalogue_items = next(items for key, _, items in catalogue if key == DEPOSIT_GROUP)
+    by_id = {entry[0]: entry for entry in catalogue_items if not entry[2]}
+    requested = [by_id[item] for item in DEPOSIT_ITEMS.values() if item in by_id]
+    if not requested or len(interval) != 2:
+        return {}
+    fetched = report(list(cookies), token, dates, DEPOSIT_GROUP, requested, interval, "TL")
+    by_key = {series["key"]: dict(series["points"]) for series in fetched}
+    result = {}
+    for column in ("TP", "YP"):
+        def pair(item):
+            values = by_key.get(f"{DEPOSIT_GROUP}:{item}:10001:TL:{column}", {})
+            return [values.get(day) for day in interval]
+
+        demand, term = pair(DEPOSIT_ITEMS["demand"]), pair(DEPOSIT_ITEMS["term"])
+        commercial = points[f"{DEPOSIT_GROUP}:{COMMERCIAL_ITEM}:10001:TL:{column}"]
+        reconciles = all(a is not None and b is not None and commercial.get(day) is not None
+                         and isclose(a + b, commercial[day], rel_tol=0, abs_tol=0.00002)
+                         for day, a, b in zip(interval, demand, term, strict=True))
+        result[column] = {"dates": interval, "total": pair(DEPOSIT_ITEMS["total"]),
+                          "demand": demand if reconciles else None,
+                          "term": term if reconciles else None}
+    return result
 
 
 def refresh(previous):
@@ -127,7 +158,15 @@ def refresh(previous):
         if interval[0] not in failed_windows:
             windows_checked[interval[0] + "/" + interval[-1]] = now
     verified_now = set.intersection(*verified_by_group.values())
-    return {"latest": last, "publication": publications.get(week(last)), "checked": now,
+    prior_week = (date.fromisoformat(week(last)) - timedelta(days=7)).isoformat()
+    prior_day = next((day for day in reversed(periods[-13:]) if week(day) == prior_week), None)
+    context = {}
+    if prior_day:
+        try:
+            context = deposit_context(cookies, token, dates, catalogue, [prior_day, last], points)
+        except (OSError, ValueError, StopIteration) as error:
+            print(f"::warning::Ek mevduat bilgisi alınamadı: {error}")
+    return {"depositContext": context, "latest": last, "publication": publications.get(week(last)), "checked": now,
             "attempted": now, "points": points, "periods": periods,
             "windows": windows_checked, "revisions": revisions,
             "verified": sorted(set(previous.get("verified", [])) | verified_now),
