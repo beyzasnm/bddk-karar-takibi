@@ -17,6 +17,26 @@ const { chromium } = require('playwright');
     const before = await values.allTextContents();
     assert.equal(before.length, 4);
     assert.ok(before.every(text => text.includes('→') && !text.includes('—')));
+    const ranks = await page.locator('.weekly-rank').allTextContents();
+    assert.equal(ranks.length, 4);
+    assert.ok(ranks.every(line => line.includes('52 hafta')));
+    assert.equal(await page.locator('.deposit-reference').count(), 2);
+    assert.equal(await page.locator('.deposit-split[open]').count(), 0);
+    for (const [i, column] of ['TP', 'YP'].entries()) {
+      const entry = snapshot.depositContext[column];
+      assert.equal(entry.dates[1], snapshot.latest);
+      assert.ok(['total', 'demand', 'term'].every(key => entry[key]?.every(v => typeof v === 'number')));
+      const reference = await page.locator('.deposit-reference').nth(i).textContent();
+      const pct = 100 * (entry.total[1] - entry.total[0]) / entry.total[0];
+      const formatted = new Intl.NumberFormat('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(Math.abs(pct));
+      assert.match(reference, /Sektör toplam mevduatı/);
+      assert.ok(reference.includes('%' + formatted));
+      const details = page.locator('.deposit-split').nth(i);
+      await details.locator('summary').click();
+      assert.equal(await details.locator('dd').count(), 2);
+      assert.match(await details.locator('dd').first().textContent(), /milyar TL/);
+      await details.locator('summary').click();
+    }
     const cardsBefore = await page.locator('.metrics').allTextContents();
     assert.ok(before.every(text => text.includes('milyar TL')));
     const positions = await page.locator('.card').evaluateAll(cards =>
@@ -87,12 +107,15 @@ const { chromium } = require('playwright');
     const previous = snapshot.periods.filter(d => d <= previousWeek && d > new Date(latest - 7 * 86400000).toISOString().slice(0,10)).at(-1);
     assert.ok(previous);
     snapshot.points[snapshot.series[0].id][previous] = null;
+    snapshot.depositContext = {};
     snapshot.error = 'Kontrollü kaynak bağlantısı hatası';
     await page.goto('about:blank');
     await page.setContent(html.replace(/(<script type="application\/json" id="snapshot">).*?(<\/script>)/s,
       (_, start, end) => start + JSON.stringify(snapshot).replace(/</g, '\\u003c') + end));
     assert.match(await page.locator('#notice').textContent(), /Son doğrulanmış veri/);
     assert.match(await page.locator('.card .metrics').first().textContent(), /gözlemi eksik/);
+    assert.match(await page.locator('.deposit-reference').first().textContent(), /Bu hafta veri alınamadı/);
+    assert.equal(await page.locator('.card').count(), 4);
     assert.deepEqual(errors, []);
     console.log('Dört kart, tarih aralıkları, klavye, bilgi kutusu ve endeks karşılaştırması doğrulandı.');
   } finally {
