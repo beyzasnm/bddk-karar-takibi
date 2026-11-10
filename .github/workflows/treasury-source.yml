@@ -1,0 +1,19 @@
+name: Hazine Satış BDDK kaynak doğrulaması
+on:
+  push:
+    branches: [hazine-satis-bddk]
+    paths: [verify_treasury_source.py, .github/workflows/treasury-source.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install beautifulsoup4==4.13.4 lxml==5.4.0
+      - run: python verify_treasury_source.py
