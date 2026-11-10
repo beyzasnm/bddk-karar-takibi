@@ -15,7 +15,7 @@ permissions:
   contents: read
 jobs:
   dashboard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
@@ -37,6 +37,21 @@ jobs:
           npm install --no-save playwright@1.56.1
           npx playwright install chromium
           node test_treasury.cjs
+          python - <<'PY'
+          import json
+          from build_treasury import STATE, record_observation
+          state = json.loads(STATE.read_text())
+          key = next(iter(state['points']))
+          day = state['latest']
+          value = state['points'][key][day]
+          revisions = []
+          record_observation(state['points'], revisions, key, day, value, state['checked'])
+          assert not revisions
+          record_observation(state['points'], revisions, key, day, value + 1, state['checked'])
+          record_observation(state['points'], revisions, key, day, value + 1, state['checked'])
+          assert revisions == [dict(id=key, date=day, old=value, new=value + 1, detectedAt=state['checked'])]
+          print('Gerçek BDDK gözlemiyle revizyon ve yinelenen kontrol doğrulandı.')
+          PY
       - name: Gözlem ve revizyon arşivini kaydet
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: |
