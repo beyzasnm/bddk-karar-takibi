@@ -1,0 +1,53 @@
+name: BDDK haftalık veri arşivi
+on:
+  push:
+    branches: [main]
+    paths: ['collect_weekly.py', 'dashboard.html', '.github/workflows/weekly.yml']
+  workflow_dispatch:
+    inputs:
+      full:
+        type: boolean
+        description: Bütün geçmişi yeniden doğrula
+        default: false
+  schedule:
+    - cron: '17 * * * *'
+concurrency:
+  group: bddk-weekly
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install beautifulsoup4==4.13.4 lxml==5.4.0
+      - run: npm install --no-save --ignore-scripts exceljs@4.4.0
+      - name: Resmî bülteni al ve paneli üret
+        env:
+          FULL_BACKFILL: ${{ inputs.full }}
+        run: |
+          if [ "$FULL_BACKFILL" = true ]; then
+            python collect_weekly.py --full
+          else
+            python collect_weekly.py
+          fi
+      - name: Doğrulanmış arşivi sakla
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add archive/weekly.json.gz
+          if ! git diff --cached --quiet; then
+            git commit -m "BDDK haftalık arşivini güncelle"
+            git push origin HEAD:main
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bddk-veri-arsivi
+          path: dist/index.html

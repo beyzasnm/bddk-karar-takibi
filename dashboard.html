@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BDDK Veri Arşivi</title>
+<style>
+:root{color-scheme:dark;background:#101820;color:#edf4fa;font:16px system-ui}
+body{margin:0 auto;max-width:1160px;padding:30px 20px}
+a{color:#9de6ff}h1{font-size:clamp(2rem,5vw,3.5rem);margin:.35em 0}h2{margin:1.3em 0 .65em}
+.muted,small{color:#b3c5d5}.eyebrow{color:#8be2c7;letter-spacing:.13em;font-size:.78rem;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+article,fieldset,details{background:#192631;border:1px solid #3c5060;border-radius:9px;padding:14px;margin:0}
+article strong{display:block;font-size:1.2rem;margin:.45rem 0}
+label{display:block}label input,label select{margin-top:4px}
+button,select,input{font:inherit;color:inherit;background:#111e28;border:1px solid #60788b;border-radius:5px;padding:7px}
+input[type=checkbox]{margin-right:.45rem}button{cursor:pointer}button:disabled{opacity:.55;cursor:default}
+button.primary{background:#8be2c7;color:#122822;font-weight:700}
+.controls{display:flex;flex-wrap:wrap;align-items:end;gap:10px;margin:.75rem 0}
+.scroll{overflow:auto}table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1px solid #405463;padding:8px;white-space:nowrap}
+svg{width:100%;height:160px;margin:8px 0}summary{cursor:pointer}
+#series-list{max-height:210px;overflow:auto;padding:8px}#series-list label{padding:3px}
+.warn{color:#ffcd92}
+</style>
+</head>
+<body>
+<header>
+<div class="eyebrow">BANKACILIK DÜZENLEME VE DENETLEME KURUMU</div>
+<h1>BDDK Veri Arşivi</h1>
+<p id="status" class="muted">Veri yükleniyor.</p>
+<a id="source" href="https://www.bddk.org.tr/BultenHaftalik/tr/Gelismis">Resmî haftalık bülten</a>
+</header>
+<main>
+<h2>Son gözlemler</h2>
+<div class="grid" id="cards"></div>
+<div class="controls"><label>Grafik serisi <select id="chart-series"></select></label></div>
+<p id="chart-range" class="muted"></p>
+<svg id="trend" viewBox="0 0 640 160" preserveAspectRatio="none" role="img" aria-label="Seçilen serinin zaman grafiği"></svg>
+<h2>Arşiv ve Excel</h2>
+<fieldset>
+<legend>Veri seçimi</legend>
+<div class="grid" id="categories"></div>
+<div class="controls">
+<label>Başlangıç <input type="date" id="start"></label>
+<label>Bitiş <input type="date" id="end"></label>
+<label>Banka grubu <select id="bank"></select></label>
+<label>Para ayrımı <select id="currency"></select></label>
+<label>Gösterim birimi <select id="unit"></select></label>
+<label>Seri ara <input type="search" id="search" placeholder="Ör. yabancı para"></label>
+<button id="reset" type="button">Tüm geçmiş</button>
+</div>
+<details><summary>Serileri tek tek seç</summary><div id="series-list"></div></details>
+<div class="controls">
+<label>Excel düzeni <select id="layout"><option value="tables">Tablo başına ayrı sekme</option><option value="aligned">Ortak tarihlerle tek sekme</option></select></label>
+<label>Tarih sırası <select id="order"><option value="desc">En yeni önce</option><option value="asc">En eski önce</option></select></label>
+<button type="button" id="download" class="primary">Excel indir</button>
+</div>
+<p id="selection" role="status"></p>
+</fieldset>
+<h2>Önizleme</h2>
+<div class="scroll"><table id="preview"></table></div>
+</main>
+<script id="snapshot" type="application/json">__SNAPSHOT__</script>
+<script>__EXCEL_LIBRARY__</script>
+<script>
+'use strict';
+const el = id => document.getElementById(id);
+const node = (parent, tag, label) => {
+  const child = document.createElement(tag);
+  if (label !== undefined) child.textContent = label;
+  parent.append(child);
+  return child;
+};
+const number = new Intl.NumberFormat('tr-TR', {maximumFractionDigits:2});
+const date = value => value.split('-').reverse().join('.');
+const sortText = (a,b) => a.localeCompare(b,'tr');
+const seriesLabel = series => [series.name, series.bank, series.currency, series.unit, series.ended ? 'Sonlandırılmış' : ''].filter(Boolean).join(' · ');
+const data = JSON.parse(el('snapshot').textContent);
+const groups = data.groups;
+const allSeries = groups.flatMap(group => group.series);
+const disabled = new Set();
+const dateTime = value => value ? new Intl.DateTimeFormat('tr-TR', {
+  dateStyle:'short',timeStyle:'short',timeZone:'Europe/Istanbul'
+}).format(new Date(value)) : '—';
+el('status').textContent = [data.coverage, 'Son başarılı veri alımı ' + dateTime(data.checked_at)].filter(Boolean).join(' · ');
+if (data.warning) node(el('status'), 'small', ' · ' + data.warning).className = 'warn';
+for (const group of groups) {
+  const label = node(el('categories'),'label');
+  const box = node(label,'input');
+  box.type = 'checkbox';
+  box.value = group.id;
+  box.checked = true;
+  label.append(group.name);
+}
+for (const key of ['bank','currency','unit']) {
+  node(el(key),'option','Tümü').value = '';
+  for (const value of [...new Set(allSeries.map(s=>s[key]).filter(Boolean))].sort(sortText)) {
+    node(el(key),'option',value).value = value;
+  }
+}
+const featured = allSeries.filter(s=>s.featured && s.points.length).slice(0,6);
+for (const series of featured) {
+  const card = node(el('cards'),'article');
+  const [day,value] = series.points.at(-1);
+  node(card,'span',series.name);
+  node(card,'strong',number.format(value)+' '+series.unit);
+  node(card,'small',date(day));
+}
+if (!featured.length) node(el('cards'),'p','Henüz gösterilecek doğrulanmış veri yok.');
+function currentGroups() {
+  const ids = new Set([...el('categories').querySelectorAll(':checked')].map(box=>box.value));
+  const query = el('search').value.trim().toLocaleLowerCase('tr');
+  return groups.filter(g=>ids.has(g.id)).map(g=>({...g,series:g.series.filter(s=>s.points.length &&
+    (!el('bank').value || s.bank === el('bank').value) &&
+    (!el('currency').value || s.currency === el('currency').value) &&
+    (!el('unit').value || s.unit === el('unit').value) &&
+    (!query || (g.name+' '+seriesLabel(s)).toLocaleLowerCase('tr').includes(query)))}));
+}
+function withinRange([day]) {
+  return (!el('start').value || day >= el('start').value) && (!el('end').value || day <= el('end').value);
+}
+function aligned(series) {
+  const rows = new Map();
+  series.forEach((s,index)=>s.points.filter(withinRange).forEach(([day,value])=>{
+    if (!rows.has(day)) rows.set(day,new Array(series.length).fill(null));
+    rows.get(day)[index] = value;
+  }));
+  return [...rows].sort(([a],[b])=>el('order').value==='asc'?a.localeCompare(b):b.localeCompare(a));
+}
+function preview() {
+  const matches = currentGroups().flatMap(g=>g.series).filter(s=>!disabled.has(s.key) && s.points.some(withinRange));
+  const shown = matches.slice(0,8);
+  const table = el('preview');
+  table.replaceChildren();
+  const header = node(node(table,'thead'),'tr');
+  node(header,'th','Gözlem tarihi');
+  shown.forEach(s=>node(header,'th',seriesLabel(s)));
+  const body = node(table,'tbody');
+  for (const [day,values] of aligned(shown).slice(0,12)) {
+    const row = node(body,'tr');
+    node(row,'td',date(day));
+    values.forEach(value=>node(row,'td',value===null?'':number.format(value)));
+  }
+  el('selection').textContent = matches.length+' seri seçili. Önizleme en fazla 8 seri ve 12 tarih gösterir.';
+  el('download').disabled = !matches.length || (el('end').value && el('start').value > el('end').value);
+  draw();
+}
+function refresh() {
+  const matches = currentGroups().flatMap(g=>g.series);
+  const list = el('series-list');
+  const select = el('chart-series');
+  const chosen = select.value || featured[0]?.key;
+  list.replaceChildren();
+  select.replaceChildren();
+  for (const series of matches) {
+    const label = node(list,'label');
+    const box = node(label,'input');
+    box.type='checkbox';
+    box.checked=!disabled.has(series.key);
+    box.addEventListener('change',()=>{
+      if (box.checked) disabled.delete(series.key); else disabled.add(series.key);
+      preview();
+    });
+    label.append(seriesLabel(series));
+    node(select,'option',seriesLabel(series)).value = series.key;
+  }
+  if (matches.some(s=>s.key===chosen)) select.value=chosen;
+  preview();
+}
+function draw() {
+  const chart=el('trend');
+  chart.replaceChildren();
+  const series=allSeries.find(s=>s.key===el('chart-series').value);
+  const points=series?.points.filter(withinRange) || [];
+  el('chart-range').textContent=points.length ? date(points[0][0])+' – '+date(points.at(-1)[0])+' · '+series.unit : 'Bu seçimde grafik verisi yok.';
+  if (!points.length) return;
+  const times=points.map(p=>Date.parse(p[0]));
+  const values=points.map(p=>p[1]);
+  const minimum=Math.min(...values), span=Math.max(...values)-minimum;
+  const line=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  line.setAttribute('points',values.map((v,i)=>[12+616*(times[i]-times[0])/(times.at(-1)-times[0] || 1),span?148-136*(v-minimum)/span:80].join(',')).join(' '));
+  line.setAttribute('fill','none');
+  line.setAttribute('stroke','#8be2c7');
+  line.setAttribute('stroke-width','3');
+  line.setAttribute('vector-effect','non-scaling-stroke');
+  chart.append(line);
+}
+for (const id of ['categories','bank','currency','unit','search']) el(id).addEventListener('input',refresh);
+for (const id of ['start','end','order']) el(id).addEventListener('input',preview);
+el('chart-series').addEventListener('change',draw);
+el('reset').addEventListener('click',()=>{el('start').value='';el('end').value='';preview();});
+el('download').addEventListener('click',async()=>{
+  const button=el('download');
+  button.disabled=true;
+  button.textContent='Hazırlanıyor…';
+  try {
+    const selected=currentGroups().map(g=>({...g,series:g.series.filter(s=>!disabled.has(s.key)&&s.points.some(withinRange))})).filter(g=>g.series.length);
+    const book=new ExcelJS.Workbook();
+    const metadata=book.addWorksheet('Kaynak ve yöntem');
+    metadata.addRows([
+      ['Kaynak',el('source').href],['Sıklık','Haftalık'],
+      ['Eşleştirme','Özgün gözlem tarihleri. Eşleşmeyen hücre boş.'],
+      ['Veri alımı',data.checked_at],['Kapsam',data.coverage],
+      ['Yayın tarihi','Gözlem tarihinden ayrı tutulur. Bu kaynakta doğrulanmamış yayın tarihleri boştur.'],
+      ['Sekme','Seri anahtarı','Kalem','Banka grubu','Para ayrımı','Birim','İlk gözlem','Son gözlem']
+    ]);
+    const combined=el('layout').value==='aligned';
+    const sheets=combined?[{name:'Ortak tarihler',series:selected.flatMap(g=>g.series)}]:selected;
+    sheets.forEach((g,index)=>{
+      if (g.series.length>=16384) throw new Error('Bu seçim Excel sütun sınırını aşıyor.');
+      const name=combined?g.name:(index+1)+' '+g.name.replace(/[\\/\[\]:*?]/g,'').slice(0,26);
+      const sheet=book.addWorksheet(name,{views:[{state:'frozen',xSplit:1,ySplit:1}]});
+      sheet.addRow(['Gözlem tarihi',...g.series.map(seriesLabel)]);
+      sheet.getColumn(1).width=16;
+      sheet.getColumn(1).numFmt='dd.mm.yyyy';
+      for (const [day,values] of aligned(g.series)) sheet.addRow([new Date(day+'T00:00:00Z'),...values]);
+      for (const s of g.series) metadata.addRow([name,s.key,s.name,s.bank,s.currency,s.unit,s.points[0][0],s.points.at(-1)[0]]);
+    });
+    const blob=new Blob([await book.xlsx.writeBuffer()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;link.download='BDDK_Haftalik_Arsiv.xlsx';link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  } catch (error) {
+    el('selection').textContent='Excel üretilemedi. '+error.message;
+  } finally {
+    button.textContent='Excel indir';
+    button.disabled=false;
+  }
+});
+refresh();
+</script>
+</body>
+</html>
