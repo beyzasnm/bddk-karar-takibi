@@ -42,8 +42,8 @@ const { chromium } = require('playwright');
     }
     const html = fs.readFileSync(output, 'utf8');
     const latest = new Date(snapshot.latest + 'T00:00:00Z');
-    const sinceFriday = (latest.getUTCDay() + 2) % 7;
-    latest.setUTCDate(latest.getUTCDate() - sinceFriday - 7);
+    const weekday = (latest.getUTCDay() + 6) % 7;
+    latest.setUTCDate(latest.getUTCDate() + 4 - weekday - 7);
     const previousWeek = latest.toISOString().slice(0,10);
     const previous = snapshot.periods.filter(d => d <= previousWeek && d > new Date(latest - 7 * 86400000).toISOString().slice(0,10)).at(-1);
     assert.ok(previous);
