@@ -17,9 +17,13 @@ const { chromium } = require('playwright');
     const before = await values.allTextContents();
     assert.equal(before.length, 4);
     assert.ok(before.every(text => text.includes('→') && !text.includes('—')));
-    const ranks = await page.locator('.weekly-rank').allTextContents();
-    assert.equal(ranks.length, 4);
-    assert.ok(ranks.every(line => line.includes('52 hafta')));
+    assert.equal(await page.locator('.weekly-rank').count(), 0);
+    assert.equal(await page.locator('.metric.weekly').count(), 4);
+    assert.equal(await page.locator('.metric.four').count(), 4);
+    const tones = await page.locator('.groups > section').evaluateAll(groups =>
+      groups.map(group => getComputedStyle(group).backgroundColor));
+    assert.equal(tones.length, 2);
+    assert.notEqual(tones[0], tones[1]);
     assert.equal(await page.locator('.deposit-reference').count(), 2);
     assert.equal(await page.locator('.deposit-split[open]').count(), 0);
     for (const [i, column] of ['TP', 'YP'].entries()) {
