@@ -7,16 +7,22 @@
 <style>
 :root{color-scheme:light;--accent:#812556;--ink:#221e24;--muted:#57525a;--line:#dfdbe0}
 *{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:15px system-ui,sans-serif}header{border-top:4px solid var(--accent);border-bottom:1px solid var(--line)}main,.mast{max-width:1280px;margin:auto;padding:18px 28px}.mast,.bar,.card-head{display:flex;justify-content:space-between;align-items:center;gap:16px}.mast h1{margin:0;font-size:24px}.mast p,.card p{margin:3px 0}.eyebrow,small,.muted{color:var(--muted);font-size:13px}.status{text-align:right}.notice{border-left:3px solid var(--accent);padding:7px 12px;background:#f8f6f7}.bar{margin:4px 0 12px}.controls{display:flex;gap:6px;flex-wrap:wrap}button,select{border:1px solid #aaa2ac;background:#fff;color:inherit;padding:7px 12px;font:inherit;border-radius:2px}button{cursor:pointer}button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);font-weight:650}a,summary{color:var(--accent)}summary{cursor:pointer}a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.groups,.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}.groups h2{font-size:19px;margin:0 0 9px}.card,.comparison{border:1px solid var(--line);padding:13px;min-width:0}.card h3{margin:0;font-size:15px}.value{font-weight:700;font-size:clamp(16px,1.52vw,22px);font-variant-numeric:tabular-nums;white-space:nowrap}.value span{color:var(--accent)}.metrics{margin:8px 0;font-size:13px}.metrics strong{font-variant-numeric:tabular-nums}.chart{margin-top:10px;border-top:1px solid var(--line);padding-top:6px}.chart svg{display:block;width:100%;height:auto;touch-action:pan-y}.chart input{width:100%;accent-color:var(--accent);height:12px;margin:1px 0}.tip{border:1px solid var(--line);padding:6px 8px;margin-top:5px;font-size:12px;min-height:52px}.tip div+div{margin-top:3px}.card details{border-top:1px solid var(--line);padding-top:7px;margin-top:8px;font-size:12px}.comparison{margin-top:16px}.comparison h2{margin:0 0 8px;font-size:18px}.comparison .chart{max-width:750px}.comparison .chart svg{max-height:280px}.comparison label{display:inline-flex;align-items:center;gap:6px;margin:0 10px 6px 0}.comparison select{max-width:100%}footer{border-top:1px solid var(--line);margin-top:16px;padding-top:8px;font-size:12px;color:var(--muted)}[hidden]{display:none!important}@media(max-width:1050px){.groups{grid-template-columns:1fr}.value{font-size:21px}}@media(max-width:630px){.cards{grid-template-columns:1fr}.mast,.bar{align-items:flex-start;flex-direction:column}.status{text-align:left}main,.mast{padding:13px 15px}}
+
+/* Keep each table on its own row and give both currency charts equal room. */
+.groups{display:block}.groups>section+section{margin-top:22px}.groups h2{padding-bottom:7px;border-bottom:1px solid var(--line)}.card{padding:15px 17px}.card h3{font-size:16px}.value{font-size:clamp(19px,2vw,26px);white-space:normal}.value small{font-weight:500;white-space:nowrap}.metrics{margin:7px 0 10px}.metrics .weekly{font-size:15px}.metrics .four{margin-top:6px}.metrics time{font-size:12px;color:var(--muted)}.period{font-size:17px}.bar{justify-content:flex-end}.chart{position:relative}.chart svg{max-height:182px}.comparison .chart svg{max-height:250px}.chart .point-picker:not(:focus){position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%)}.tip{position:absolute;right:6px;top:26px;z-index:1;max-width:calc(100% - 12px);min-height:0;background:white;border-color:#aaa2ac;pointer-events:none}.comparison .tip{max-width:min(92%,460px)}.comparison .trend-summary{margin:6px 0;font-size:13px}.dates label{display:inline-flex;gap:5px;align-items:center}.dates input{font:inherit;color:inherit;border:1px solid #aaa2ac;padding:5px}.dates{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.dates input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.bar{flex-wrap:wrap}.controls{align-items:center}.card .range-summary{display:block;line-height:1.4}
 </style>
 </head>
 <body>
 <header><div class="mast"><div><div class="eyebrow">HAZİNE SATIŞ · BANKACILIK SEKTÖRÜ</div><h1>BDDK Haftalık Görünüm</h1></div><div id="status" class="status"></div></div></header>
 <main>
 <div id="notice" class="notice" hidden></div>
-<div class="bar"><div id="summary" class="muted"></div><div class="controls" aria-label="Grafik dönemi">
-<button type="button" data-range="13" aria-pressed="true">13 hafta</button><button type="button" data-range="52" aria-pressed="false">52 hafta</button><button type="button" data-range="0" aria-pressed="false">Tüm geçmiş</button><button type="button" id="toggle" aria-expanded="false" aria-controls="compare">Karşılaştır</button></div></div>
+<div class="bar"><div class="controls">
+<label for="range">Grafik dönemi</label>
+<select id="range"><option value="4">Son 4 hafta</option><option value="13" selected>Son 13 hafta</option><option value="26">Son 26 hafta</option><option value="52">Son 52 hafta</option><option value="all">Tüm geçmiş</option><option value="custom">Özel tarih aralığı</option></select>
+<form id="custom-dates" class="dates" hidden><label>Başlangıç <input id="from" type="date" required></label><label>Bitiş <input id="to" type="date" required></label><button type="submit">Uygula</button></form>
+<button type="button" id="toggle" aria-expanded="false" aria-controls="compare">Karşılaştır</button></div></div>
 <section class="groups" id="groups" aria-label="Göstergeler"></section>
-<section class="comparison" id="compare" hidden><h2>Karşılaştır</h2><label>Birinci seri <select id="first"></select></label><label>İkinci seri <select id="second"></select></label><div id="comparison-chart"></div></section>
+<section class="comparison" id="compare" hidden><h2 id="comparison-title" tabindex="-1">Karşılaştır</h2><label>Birinci seri <select id="first"></select></label><label>İkinci seri <select id="second"></select></label><div id="comparison-chart"></div></section>
 <footer><a href="https://www.bddk.org.tr/Veri/Detay/158" target="_blank" rel="noopener">BDDK Haftalık Bülten ve metaveri</a> · Nisan 2022 kapsam geçişi ayrı işaretlenir. YP bakiyeler TL karşılığıyla gösterilir ve kur değerlemesini içerebilir. <span id="revisions"></span></footer>
 </main>
 <script type="application/json" id="snapshot">__TREASURY_DATA__</script>
@@ -31,6 +37,10 @@ const stamp = new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'sho
 const date = d => d ? day.format(new Date(d+'T00:00:00Z')) : '—';
 const time = d => d ? stamp.format(new Date(d)) : 'Doğrulanmadı';
 const n = value => value == null ? '—' : num.format(value);
+const balance = value => value == null ? '—' : n(value/1000);
+const percent = v => (v>0?'+':v<0?'−':'')+'%'+new Intl.NumberFormat('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.abs(v));
+const shortDate = new Intl.DateTimeFormat('tr-TR',{day:'numeric',month:'short',timeZone:'UTC'});
+const tickDate = (d,withYear) => withYear ? date(d) : shortDate.format(new Date(d+'T00:00:00Z'));
 const signed = (v,f=num) => (v>0?'+':v<0?'−':'')+f.format(Math.abs(v));
 const direction = v => v>0?'artış':v<0?'düşüş':'yatay';
 const shift = (d,days) => { const t=new Date(d+'T00:00:00Z'); t.setUTCDate(t.getUTCDate()+days); return t.toISOString().slice(0,10); };
@@ -54,42 +64,49 @@ function change(s,from,to){
 function changeText(c, pct=false, detailed=false){
  if(c.missing)return date(c.missing)+' gözlemi eksik';
  if(c.break)return 'Kapsam geçişi';
- return signed(c.delta,detailed?precise:num)+' milyon TL · '+direction(c.delta)+(pct&&c.pct!==null?' · '+signed(c.pct)+'%':'');
+ return signed(detailed?c.delta:c.delta/1000,detailed?precise:num)+(detailed?' milyon TL':' milyar TL')+' · '+direction(c.delta)+(pct&&c.pct!==null?' · '+percent(c.pct):'');
 }
-let range=13;
+let range='13';
+let custom=null;
 const graphs=new Map();
 function weeks(){
- const start=range ? [firstPeriod,shift(end,-7*(range-1))].sort()[1] : firstPeriod;
+ const start=range==='custom' ? friday(custom[0]) : range==='all' ? firstPeriod :
+   [firstPeriod,shift(end,-7*Number(range))].sort()[1];
+ const last=range==='custom' ? friday(custom[1]) : end;
  const days=[];
- for(let d=start;d<=end;d=shift(d,7))days.push(dates.get(d)||d);
+ for(let d=start;d<=last;d=shift(d,7)){
+  const observation=dates.get(d)||d;
+  if(range!=='custom' || (observation>=custom[0] && observation<=custom[1]))days.push(observation);
+ }
  return days;
 }
 function graph(container,series,indexed){
  const original=weeks();
+ if(!original.length){container.textContent='Bu tarih aralığında haftalık gözlem yok.';return;}
  let start=0;
  if(indexed){
-  start=original.findIndex(d=>segment(d)===segment(data.latest) && series.every(s=>value(s,d)!==null && value(s,d)!==0));
+  start=original.findIndex(d=>segment(d)===segment(original.at(-1)) && series.every(s=>value(s,d)!==null && value(s,d)!==0));
   if(start===-1){container.textContent='Ortak başlangıç gözlemi bulunamadı.';return;}
  }
  const days=original.slice(start);
  const values=series.map(s=>days.map(d=>{
   const v=value(s,d);
-  return v===null || (indexed && segment(d)!==segment(days[0]))?null:indexed?100*v/value(s,days[0]):v;
+  return v===null || (indexed && segment(d)!==segment(days[0]))?null:indexed?100*v/value(s,days[0]):v/1000;
  }));
  const all=values.flat().filter(v=>v!==null);
  if(!all.length){container.textContent='Seçili aralıkta doğrulanmış gözlem yok.';return;}
  const low=Math.min(...all),high=Math.max(...all),padding=(high-low || Math.abs(high)*.02 || 1)*.12;
  const min=low-padding,max=high+padding;
- const W=indexed?620:400, H=indexed?160:133, L=indexed?64:72, R=W-12, B=H-26, T=16;
+ const W=indexed?620:530, H=indexed?160:145, L=indexed?64:58, R=W-14, B=H-26, T=12;
  const x=i=>L+(R-L)*i/Math.max(1,days.length-1), y=v=>B-(B-T)*(v-min)/(max-min);
  const colors=['#812556','#355766'];
- let svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+(indexed?'100 tabanlı karşılaştırma':'Bakiye, milyon TL')+'">';
+ let svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+(indexed?'100 tabanlı karşılaştırma':'Bakiye, milyar TL')+'">';
  for(let i=0;i<3;i++){
   const v=min+(max-min)*i/2, p=y(v);
   svg+='<path d="M'+L+' '+p+'H'+R+'" stroke="#dfdbe0"/><text x="'+(L-5)+'" y="'+(p+4)+'" text-anchor="end" font-size="10" fill="#57525a">'+n(v)+'</text>';
  }
  const labels=days.length===1?[0]:days.length<4?[0,days.length-1]:[0,Math.floor(days.length/2),days.length-1];
- for(const i of labels)svg+='<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="'+(i===0?'start':i===days.length-1?'end':'middle')+'" font-size="10" fill="#57525a">'+date(days[i])+'</text>';
+ for(const i of labels)svg+='<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="'+(i===0?'start':i===days.length-1?'end':'middle')+'" font-size="10" fill="#57525a">'+tickDate(days[i],days[0].slice(0,4)!==days.at(-1).slice(0,4))+'</text>';
  const boundary=days.findIndex(d=>d>=breakStart);
  if(boundary>0)svg+='<path d="M'+x(boundary)+' '+T+'V'+B+'" stroke="#827780" stroke-dasharray="3 3"><title>Nisan 2022 kapsam geçişi</title></path>';
  values.forEach((line,k)=>{
@@ -106,18 +123,21 @@ function graph(container,series,indexed){
   const valid=values[k].map((v,i)=>v===null?-1:i).filter(i=>i>=0);
   if(!valid.length)return esc(s.title)+' · gözlem yok';
   const a=valid[0],b=valid.at(-1);
-  return (indexed?esc(s.title)+' · ':'')+date(days[a])+' → '+date(days[b])+' · '+n(values[k][a])+' → '+n(values[k][b])+(indexed?' endeks':' milyon TL')+' · '+direction(values[k][b]-values[k][a]);
+  return (indexed?esc(s.title)+' · ':'')+date(days[a])+' → '+date(days[b])+' · '+n(values[k][a])+' → '+n(values[k][b])+(indexed?' endeks':' milyar TL')+' · '+direction(values[k][b]-values[k][a]);
  }).join('<br>');
+ const commonEnd=indexed?days.findLastIndex((_,i)=>values.every(line=>line[i]!==null)):-1;
+ const trend=indexed&&commonEnd>0?'<p class="trend-summary"><strong>'+date(days[0])+' → '+date(days[commonEnd])+'</strong><br>'+
+   series.map((s,k)=>esc(s.title)+' '+percent(values[k][commonEnd]-100)+' · '+direction(values[k][commonEnd]-100)).join('<br>')+'</p>':'';
  container.className='chart';
- container.innerHTML='<small>'+(indexed?'Endeks · '+date(days[0])+' = 100 · düz çizgi birinci seri, kesikli çizgi ikinci seri'+(start>0?' · ortak karşılaştırılabilir dönem':''):'Değer ekseni · milyon TL')+'</small>'+svg+
- '<small>'+coverage+'</small><input type="range" min="0" max="'+(days.length-1)+'" value="'+(days.length-1)+'" aria-label="Grafik gözlem haftası"><div class="tip" aria-live="polite"></div>'+
- (indexed && values.some((line,k)=>line.some((v,i)=>v===null && value(series[k],days[i])!==null))?'<small>Kapsam geçişinden sonraki gözlemler aynı tabanda endekslenmez. Özgün değerler bilgi kutusunda yer alır.</small>':'');
+ container.innerHTML='<small>'+(indexed?'Endeks · '+date(days[0])+' = 100 · düz çizgi birinci seri, kesikli çizgi ikinci seri'+(start>0?' · ortak karşılaştırılabilir dönem':''):'Değer ekseni · milyar TL')+'</small>'+trend+svg+
+ '<small class="range-summary">'+(indexed?'':coverage)+'</small><input class="point-picker" type="range" min="0" max="'+(days.length-1)+'" value="'+(days.length-1)+'" aria-label="Grafik gözlem haftası"><div class="tip" role="status" hidden></div>';
  const plot=container.querySelector('svg'),input=container.querySelector('input'),tip=container.querySelector('.tip');
- function select(i){
+ function select(i,show=true){
   const d=days[i];
+  tip.hidden=!show;
   input.value=i;
   input.setAttribute('aria-valuetext',date(d));
-  plot.querySelector('.cursor').setAttribute('d','M'+x(i)+' '+T+'V'+B);
+  plot.querySelector('.cursor').setAttribute('d',show?'M'+x(i)+' '+T+'V'+B:'');
   tip.innerHTML='<strong>'+date(d)+'</strong>'+series.map((s,k)=>{
    const original=value(s,d), c=weekly(s,d);
    return '<div>'+esc(s.title)+' · '+(original===null?'Gözlem eksik':precise.format(original)+' milyon TL'+(indexed?(values[k][i]===null?' · endeks hesaplanmadı':' · endeks '+n(values[k][i])):''))+
@@ -130,18 +150,20 @@ function graph(container,series,indexed){
  }
  plot.addEventListener('pointermove',event=>{if(event.pointerType==='mouse')pointer(event);});
  plot.addEventListener('pointerdown',pointer);
+ const close=()=>{if(document.activeElement!==input)select(Number(input.value),false);};
+ plot.addEventListener('pointerleave',event=>{if(event.pointerType==='mouse')close();});
  input.addEventListener('input',()=>select(Number(input.value)));
  input.addEventListener('focus',()=>select(Number(input.value)));
- select(days.length-1);
+ input.addEventListener('blur',close);
+ input.addEventListener('keydown',event=>{if(event.key==='Escape'){select(Number(input.value),false);}});
+ select(days.length-1,false);
 }
 const status=el('status');
-status.innerHTML='<strong>'+date(data.latest)+'</strong> · Önceki '+date(previous)+'<br><small>Takvimde yayım · '+time(data.publication)+'</small><br><small>Son başarılı kontrol · '+time(data.checked)+' · '+(data.error?'Kaynak sorunu':'Doğrulandı')+'</small>';
+status.innerHTML='<strong class="period">'+date(previous)+' → '+date(data.latest)+'</strong>'+'<br><small>Takvimde yayım · '+time(data.publication)+'</small><br><small>Son başarılı kontrol · '+time(data.checked)+' · '+(data.error?'Kaynak sorunu':'Doğrulandı')+'</small>';
 const notices=[];
 if(data.error)notices.push('Son doğrulanmış veri gösteriliyor. '+time(data.attempted)+' kaynak kontrolü: '+data.error);
 if(data.historyWarning)notices.push('Yeniden doğrulanamayan geçmiş dönemler · '+data.historyWarning);
 if(notices.length){el('notice').hidden=false;el('notice').textContent=notices.join(' / ');}
-const moves=data.series.map(s=>[s,weekly(s,data.latest)]).filter(([,c])=>c.delta!=null);
-el('summary').textContent=moves.map(([s,c])=>s.title+' '+direction(c.delta)).join(' · ');
 el('revisions').textContent='· Kaydedilen revizyon: '+data.revisions.length;
 const groups=new Map();
 for(const s of data.series){
@@ -155,10 +177,10 @@ for(const s of data.series){
  const c=weekly(s,data.latest), four=change(s,monthAgo,data.latest);
  const earliest=Object.keys(data.points[s.id]).find(d=>value(s,d)!==null);
  const missing=data.periods.filter(d=>value(s,d)===null).length;
- card.innerHTML='<h3>'+esc(s.title)+'</h3><small>'+(s.column==='YP'?'YP · TL karşılığı':'TL')+' · milyon TL</small>'+
- '<p class="value">'+n(value(s,previous))+' <span aria-label="değerinden">→</span> '+n(value(s,data.latest))+'</p>'+
- '<div class="metrics"><div><strong>'+esc(changeText(c,true))+'</strong></div><small>'+date(c.from)+' → '+date(c.to)+'</small>'+
- '<div>Dört hafta · <strong>'+esc(changeText(four,true))+'</strong></div><small>'+date(four.from)+' → '+date(four.to)+'</small></div>'+
+ card.innerHTML='<h3>'+esc(s.title)+(s.column==='YP'?' <small>· TL karşılığı</small>':'')+'</h3>'+
+ '<p class="value">'+balance(value(s,previous))+' <span aria-label="değerinden">→</span> '+balance(value(s,data.latest))+' <small>milyar TL</small></p>'+
+ '<div class="metrics"><div class="weekly">Haftalık <strong>'+esc(changeText(c,true))+'</strong></div><time datetime="'+c.from+'">'+date(c.from)+'</time> <small>→</small> <time datetime="'+c.to+'">'+date(c.to)+'</time>'+
+ '<div class="four">Dört hafta · '+esc(changeText(four,true))+'</div><time datetime="'+four.from+'">'+date(four.from)+'</time> <small>→</small> <time datetime="'+four.to+'">'+date(four.to)+'</time></div>'+
  '<div class="chart"></div><details><summary>Kaynak ve kapsam</summary><p>'+esc(s.table)+' / '+esc(s.name)+' · '+esc(s.column)+' · Sektör · milyon TL</p><p>'+esc(s.reason)+'</p>'+
  '<p>İlk doğrulanmış gözlem '+date(earliest)+' · Eksik katalog gözlemi '+missing+'</p><a href="'+esc(s.source)+'" target="_blank" rel="noopener">Resmî BDDK tablosu</a></details>';
  groups.get(s.table).append(card);
@@ -173,16 +195,37 @@ function compare(){
  graph(container,ids.map(id=>data.series.find(s=>s.id===id)),true);
 }
 function redraw(){for(const [container,s] of graphs)graph(container,[s],false);compare();}
-for(const button of document.querySelectorAll('[data-range]'))button.addEventListener('click',()=>{
- range=Number(button.dataset.range);
- for(const choice of document.querySelectorAll('[data-range]'))choice.setAttribute('aria-pressed',String(choice===button));
+const rangeControl=el('range'), from=el('from'), to=el('to');
+for(const input of [from,to]){input.min=data.periods[0];input.max=data.latest;}
+from.value=dates.get(shift(end,-91))||shift(end,-91);to.value=data.latest;
+rangeControl.addEventListener('change',()=>{
+ const isCustom=rangeControl.value==='custom';
+ el('custom-dates').hidden=!isCustom;
+ if(isCustom){from.focus();return;}
+ range=rangeControl.value;
  redraw();
+});
+from.addEventListener('input',()=>to.setCustomValidity(''));
+to.addEventListener('input',()=>to.setCustomValidity(''));
+el('custom-dates').addEventListener('submit',event=>{
+ event.preventDefault();
+ if(from.value>to.value){to.setCustomValidity('Bitiş tarihi başlangıçtan önce olamaz.');to.reportValidity();return;}
+ custom=[from.value,to.value];range='custom';redraw();
+});
+document.addEventListener('pointerdown',event=>{
+ for(const tip of document.querySelectorAll('.tip:not([hidden])')){
+  const chart=tip.closest('.chart');
+  if(!chart.contains(event.target)){
+   tip.hidden=true;
+   chart.querySelector('.cursor').setAttribute('d','');
+  }
+ }
 });
 el('toggle').addEventListener('click',()=>{
  el('compare').hidden=!el('compare').hidden;
  el('toggle').setAttribute('aria-expanded',String(!el('compare').hidden));
  compare();
- if(!el('compare').hidden)el('first').focus();
+ if(!el('compare').hidden)el('comparison-title').focus();
 });
 el('first').addEventListener('change',compare);
 el('second').addEventListener('change',compare);
