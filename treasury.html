@@ -68,7 +68,7 @@ function graph(container,series,indexed){
  const original=weeks();
  let start=0;
  if(indexed){
-  start=original.findIndex(d=>series.every(s=>value(s,d)!==null && value(s,d)!==0));
+  start=original.findIndex(d=>segment(d)===segment(data.latest) && series.every(s=>value(s,d)!==null && value(s,d)!==0));
   if(start===-1){container.textContent='Ortak başlangıç gözlemi bulunamadı.';return;}
  }
  const days=original.slice(start);
@@ -106,10 +106,10 @@ function graph(container,series,indexed){
   const valid=values[k].map((v,i)=>v===null?-1:i).filter(i=>i>=0);
   if(!valid.length)return esc(s.title)+' · gözlem yok';
   const a=valid[0],b=valid.at(-1);
-  return (indexed?esc(s.title)+' · ':'')+date(days[a])+' → '+date(days[b])+' · '+n(values[k][a])+' → '+n(values[k][b])+(indexed?' endeks':' milyon TL');
+  return (indexed?esc(s.title)+' · ':'')+date(days[a])+' → '+date(days[b])+' · '+n(values[k][a])+' → '+n(values[k][b])+(indexed?' endeks':' milyon TL')+' · '+direction(values[k][b]-values[k][a]);
  }).join('<br>');
  container.className='chart';
- container.innerHTML='<small>'+(indexed?'Endeks · '+date(days[0])+' = 100 · düz çizgi birinci seri, kesikli çizgi ikinci seri':'Değer ekseni · milyon TL')+'</small>'+svg+
+ container.innerHTML='<small>'+(indexed?'Endeks · '+date(days[0])+' = 100 · düz çizgi birinci seri, kesikli çizgi ikinci seri'+(start>0?' · ortak karşılaştırılabilir dönem':''):'Değer ekseni · milyon TL')+'</small>'+svg+
  '<small>'+coverage+'</small><input type="range" min="0" max="'+(days.length-1)+'" value="'+(days.length-1)+'" aria-label="Grafik gözlem haftası"><div class="tip" aria-live="polite"></div>'+
  (indexed && values.some((line,k)=>line.some((v,i)=>v===null && value(series[k],days[i])!==null))?'<small>Kapsam geçişinden sonraki gözlemler aynı tabanda endekslenmez. Özgün değerler bilgi kutusunda yer alır.</small>':'');
  const plot=container.querySelector('svg'),input=container.querySelector('input'),tip=container.querySelector('.tip');
@@ -136,7 +136,10 @@ function graph(container,series,indexed){
 }
 const status=el('status');
 status.innerHTML='<strong>'+date(data.latest)+'</strong> · Önceki '+date(previous)+'<br><small>Takvimde yayım · '+time(data.publication)+'</small><br><small>Son başarılı kontrol · '+time(data.checked)+' · '+(data.error?'Kaynak sorunu':'Doğrulandı')+'</small>';
-if(data.error){el('notice').hidden=false;el('notice').textContent='Son doğrulanmış veri gösteriliyor. '+time(data.attempted)+' kaynak kontrolü: '+data.error;}
+const notices=[];
+if(data.error)notices.push('Son doğrulanmış veri gösteriliyor. '+time(data.attempted)+' kaynak kontrolü: '+data.error);
+if(data.historyWarning)notices.push('Yeniden doğrulanamayan geçmiş dönemler · '+data.historyWarning);
+if(notices.length){el('notice').hidden=false;el('notice').textContent=notices.join(' / ');}
 const moves=data.series.map(s=>[s,weekly(s,data.latest)]).filter(([,c])=>c.delta!=null);
 el('summary').textContent=moves.map(([s,c])=>s.title+' '+direction(c.delta)).join(' · ');
 el('revisions').textContent='· Kaydedilen revizyon: '+data.revisions.length;
