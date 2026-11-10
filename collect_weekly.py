@@ -1,10 +1,10 @@
 """Import the weekly BDDK advanced report and build the dashboard snapshot."""
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from http.cookiejar import CookieJar
 from pathlib import Path
 import gzip
+import hashlib
 import json
 import re
 from urllib.parse import urlencode
@@ -34,7 +34,7 @@ def period(value):
 def request(opener, url, fields=None):
     headers = {"User-Agent": "BDDK-Veri-Arsivi/1.0", "Referer": SOURCE}
     body = None if fields is None else urlencode(fields).encode()
-    with opener.open(Request(url, data=body, headers=headers), timeout=65) as response:
+    with opener.open(Request(url, data=body, headers=headers), timeout=22) as response:
         raw = response.read(MAX_RESPONSE + 1)
     if len(raw) > MAX_RESPONSE:
         raise ValueError("BDDK yanıtı boyut sınırını aştı")
@@ -128,18 +128,6 @@ def report(cookies, token, dates, group, items, interval, denomination):
     return extract(page, group, items, set(interval), denomination)
 
 
-def merge(previous, updates):
-    old = {s["key"]: s for g in previous.get("groups", []) for s in g["series"]}
-    for group in updates:
-        for series in group["series"]:
-            points = dict(old.get(series["key"], {}).get("points", []))
-            for day in group["interval"]:
-                points.pop(day, None)
-            points.update(series["points"])
-            series["points"] = sorted(points.items())
-    return updates
-
-
 def save(archive):
     ARCHIVE.parent.mkdir(exist_ok=True)
     raw = json.dumps(archive, ensure_ascii=False, separators=(",", ":")).encode()
@@ -154,50 +142,79 @@ def update(previous, force_history):
     dates, token, catalogue = discover(request(opener, SOURCE))
     calendar = sorted(dates)
     print(f"Resmî takvim: {calendar[0]} – {calendar[-1]} ({len(calendar)} dönem)", flush=True)
-    if previous.get("calendar") == calendar and not force_history:
-        return {**previous, "checked_at": stamp()}
-    full = not previous or force_history or not set(previous["calendar"]) <= set(calendar)
-    selected = calendar if full else [day for day in calendar if day >= previous["calendar"][-13]]
+    state = dict(previous.get("chunks", {}))
+    if force_history:
+        state = {}
+    windows = [calendar[i:i + 52] for i in range(0, len(calendar), 52)]
+    latest = calendar[-13:]
     tasks = []
     for key, _, items in catalogue:
-        for offset in range(0, len(items), 16):
-            batch = items[offset:offset + 16]
+        for offset in range(0, len(items), 12):
+            batch = items[offset:offset + 12]
             for denomination in ("TL", "USD"):
-                tasks.append((key, batch, denomination))
-    by_group = defaultdict(list)
+                for rank, interval in enumerate([latest, *reversed(windows)]):
+                    if rank and interval == latest:
+                        continue
+                    signature = json.dumps([key, denomination, interval, batch], ensure_ascii=False)
+                    chunk = hashlib.sha256(signature.encode()).hexdigest()[:24]
+                    if state.get(chunk, {}).get("ok"):
+                        continue
+                    attempts = state.get(chunk, {}).get("attempts", 0)
+                    tasks.append((rank, attempts, offset, denomination, chunk, key, batch, interval))
+    pending = sorted(tasks, key=lambda t: (t[1], t[0], t[2], t[3]))[:20]
+    if not pending:
+        return {**previous, "checked_at": stamp()}
+
     def collect(task):
-        key, items, denomination = task
+        _, attempts, _, denomination, chunk, key, items, interval = task
         try:
-            return key, report(list(cookies), token, dates, key, items, selected, denomination)
+            result = report(list(cookies), token, dates, key, items, interval, denomination)
+            return task, result, None
         except (OSError, ValueError) as error:
-            if len(selected) <= 105:
-                raise
-            print(f"{key} / {denomination}: uzun dönem parçalanıyor ({error})", flush=True)
-            combined = {}
-            for offset in range(0, len(selected), 104):
-                for series in report(list(cookies), token, dates, key, items,
-                                     selected[offset:offset + 104], denomination):
-                    if series["key"] in combined:
-                        combined[series["key"]]["points"].extend(series["points"])
-                    else:
-                        combined[series["key"]] = series
-            return key, list(combined.values())
+            return task, [], str(error)
+
+    groups = {key: {"id": key, "name": label, "series": {}} for key, label, _ in catalogue}
+    for group in previous.get("groups", []):
+        if group["id"] in groups:
+            groups[group["id"]]["series"].update({s["key"]: s for s in group["series"]})
+    finished = 0
     with ThreadPoolExecutor(max_workers=3) as pool:
-        for key, result in pool.map(collect, tasks):
-            by_group[key].extend(result)
-            print(f"{key}: {len(result)} seri, {sum(len(s['points']) for s in result)} gözlem", flush=True)
-    groups = [{"id": key, "name": name, "series": by_group[key], "interval": selected}
-              for key, name, _ in catalogue]
-    merge({} if full else previous, groups)
-    for group in groups:
-        del group["interval"]
-    return {"calendar": calendar, "checked_at": stamp(), "groups": groups}
+        for task, result, error in pool.map(collect, pending):
+            _, attempts, _, denomination, chunk, key, items, interval = task
+            state[chunk] = {"ok": error is None, "attempts": attempts + 1}
+            if error:
+                print(f"::warning::{key} / {denomination} / {interval[0]} – {interval[-1]}: {error}", flush=True)
+                continue
+            finished += 1
+            by_key = groups[key]["series"]
+            for series in result:
+                points = dict(by_key.get(series["key"], {}).get("points", []))
+                for day in interval:
+                    points.pop(day, None)
+                points.update(series["points"])
+                series["points"] = sorted(points.items())
+                by_key[series["key"]] = series
+            print(f"{key} / {denomination} / {interval[0]} – {interval[-1]}: "
+                  f"{len(result)} seri, {sum(len(s['points']) for s in result)} gözlem", flush=True)
+
+    if not finished and not previous:
+        raise ValueError("Bu çalıştırmada doğrulanabilen veri parçası alınamadı")
+    for group in groups.values():
+        group["series"] = sorted(group["series"].values(), key=lambda s: s["key"])
+    print(f"Doğrulanan yeni parça: {finished}. Kalan: {len(tasks) - finished}.", flush=True)
+    return {"calendar": calendar, "checked_at": stamp() if finished else previous["checked_at"],
+            "groups": list(groups.values()), "chunks": state, "remaining": len(tasks) - finished}
 
 
 def build(archive, warning):
     calendar = archive["calendar"]
-    payload = {**archive, "warning": warning,
-               "coverage": f"Haftalık bülten · Sektör · {calendar[0]} – {calendar[-1]} · {len(calendar)} dönem"}
+    observed = {day for group in archive["groups"] for s in group["series"] for day, _ in s["points"]}
+    coverage = (f"Haftalık bülten · Sektör · {min(observed)} – {max(observed)} · "
+                f"{len(observed)} veri dönemi / {len(calendar)} resmî dönem")
+    pending = archive.get("remaining", 0)
+    messages = [message for message in (warning, f"Arşiv aktarımı sürüyor: {pending} parça kaldı." if pending else None) if message]
+    payload = {"groups": archive["groups"], "checked_at": archive["checked_at"],
+               "warning": " ".join(messages), "coverage": coverage}
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
     html = Path("dashboard.html").read_text(encoding="utf-8")
     library = Path("node_modules/exceljs/dist/exceljs.min.js").read_text(encoding="utf-8")
