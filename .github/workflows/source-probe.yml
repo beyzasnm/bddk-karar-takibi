@@ -25,9 +25,12 @@ jobs:
               matches=[t for t in tags if f'onclick="{label}(' in t]
               print("TAGS",label,len(matches),matches[:2],matches[-1:])
           m=re.search(r'<select[^>]*id="kalemSutunSec"[^>]*>(.*?)</select>',page,re.S)
-          print("COLUMNS",m[1] if m else None)
+          print("COLUMNS",repr(m[1]) if m else None)
+          for id in ["Kalem-5687","Kalem-5859"]:
+              index=page.index(id)
+              print("CONTEXT",page[index-1200:index+280])
           m=re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)',page)
-          items=re.findall(r'onclick="KalemSec\(\s*.?(\d+)',page)
+          items=re.findall(r'onclick="KalemToggle\(\s*(\d+)',page)
           print("ITEMS",items[:10])
           if not items:
               items=["1","2"]
@@ -39,7 +42,7 @@ jobs:
           result=reply.read().decode("utf-8-sig","replace")
           print("RESPONSE",reply.url,len(result))
           for table in re.findall(r'<table\b[^>]*>.*?</table>',result,re.S|re.I):
-              print("TABLE",len(table),re.sub(r'\s+',' ',table)[:3000])
+              print("TABLE",len(table),re.sub(r'\s+',' ',table)[:5000])
           for line in result.splitlines():
               if re.search(r'RaporBolgesi|validation-summary|hata|gelismisRapor',line,re.I):
                   print("REPORT",line.strip()[:250])
