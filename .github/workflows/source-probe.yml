@@ -14,17 +14,33 @@ jobs:
         run: |
           python - <<'PY'
           import re
-          from urllib.request import urlopen
+          from http.cookiejar import CookieJar
+          from urllib.parse import urlencode
+          from urllib.request import Request,build_opener,HTTPCookieProcessor
           url="https://www.bddk.org.tr/BultenHaftalik/tr/Gelismis"
-          page=urlopen(url,timeout=25).read().decode("utf-8-sig")
-          for name in ["baslangicTarih","bitisTarih","CokluPara"]:
-              m=re.search(r'<select[^>]*id="'+name+r'"[^>]*>(.*?)</select>',page,re.S|re.I)
-              rows=re.findall(r'<option[^>]*>.*?</option>',m[1],re.S|re.I) if m else []
-              print("OPTIONS",name,len(rows),[r.strip() for r in rows[:3]+rows[-3:]])
-          for name in ["gelismisRaporGetir","KalemSpan","TarafSpan"]:
-              i=page.find("$('#"+name+"').click")
-              print("JS",name,page[i:i+3900] if i>=0 else "")
-          for line in page.splitlines():
-              if re.search(r'kalemSutunSec|KalemEkle|TarafEkle|1000[12]|onclick=.*[12]\.0\.1',line,re.I):
-                  print(line.strip()[:350])
+          client=build_opener(HTTPCookieProcessor(CookieJar()))
+          page=client.open(url,timeout=25).read().decode("utf-8-sig")
+          tags=re.findall(r'<[^>]+onclick="[^"]+"[^>]*>',page,re.I)
+          for label in sorted({re.search(r'onclick="(\w+)',t)[1] for t in tags if re.search(r'onclick="(\w+)',t)}):
+              matches=[t for t in tags if f'onclick="{label}(' in t]
+              print("TAGS",label,len(matches),matches[:2],matches[-1:])
+          m=re.search(r'<select[^>]*id="kalemSutunSec"[^>]*>(.*?)</select>',page,re.S)
+          print("COLUMNS",m[1] if m else None)
+          m=re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)',page)
+          items=re.findall(r'onclick="KalemSec\(\s*.?(\d+)',page)
+          print("ITEMS",items[:10])
+          if not items:
+              items=["1","2"]
+          params=[("__RequestVerificationToken",m[1]),("BaslangicTarihi","3.01.2014 00:00:00"),
+                  ("BitisTarihi","17.01.2014 00:00:00"),("dil","tr"),("SeciliParalar","TL,USD"),
+                  ("Taraflar","10001"),("Taraflar","10002"),("Kalemler",items[0]),("Kalemler",items[1]),
+                  ("kalemSutun","Toplam"),("kalemSutun","TP"),("kalemSutun","YP")]
+          reply=client.open(Request(url+"/GelismisRaporGetir",data=urlencode(params).encode(),headers={"Referer":url}),timeout=45)
+          result=reply.read().decode("utf-8-sig","replace")
+          print("RESPONSE",reply.url,len(result))
+          for table in re.findall(r'<table\b[^>]*>.*?</table>',result,re.S|re.I):
+              print("TABLE",len(table),re.sub(r'\s+',' ',table)[:3000])
+          for line in result.splitlines():
+              if re.search(r'RaporBolgesi|validation-summary|hata|gelismisRapor',line,re.I):
+                  print("REPORT",line.strip()[:250])
           PY
